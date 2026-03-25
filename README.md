@@ -87,4 +87,3 @@ devsecops-thesis/
 ├── .gitignore
 └── README.md
 ```
-"# NT114" 
