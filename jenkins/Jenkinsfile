@@ -1,0 +1,185 @@
+pipeline {
+    agent {
+        kubernetes {
+            label 'k8s-agent'
+            defaultContainer 'builder'
+            yaml """
+apiVersion: v1
+kind: Pod
+spec:
+  serviceAccountName: jenkins
+  containers:
+    - name: builder
+      image: golang:1.22-alpine
+      command: ["sleep", "infinity"]
+      resources:
+        requests:
+          cpu: "300m"
+          memory: "512Mi"
+        limits:
+          cpu: "800m"
+          memory: "1Gi"
+      env:
+        - name: GOPATH
+          value: /go
+        - name: CGO_ENABLED
+          value: "0"
+
+    - name: sonar-scanner
+      image: sonarsource/sonar-scanner-cli:latest
+      command: ["sleep", "infinity"]
+      resources:
+        requests:
+          cpu: "200m"
+          memory: "256Mi"
+        limits:
+          cpu: "500m"
+          memory: "512Mi"
+
+    - name: kaniko
+      image: gcr.io/kaniko-project/executor:debug
+      command: ["sleep", "infinity"]
+      resources:
+        requests:
+          cpu: "300m"
+          memory: "512Mi"
+        limits:
+          cpu: "800m"
+          memory: "1Gi"
+      volumeMounts:
+        - name: kaniko-secret
+          mountPath: /kaniko/.docker
+
+    - name: kubectl
+      image: bitnami/kubectl:latest
+      command: ["sleep", "infinity"]
+      resources:
+        requests:
+          cpu: "50m"
+          memory: "64Mi"
+
+  volumes:
+    - name: kaniko-secret
+      secret:
+        secretName: harbor-credentials
+        items:
+          - key: .dockerconfigjson
+            path: config.json
+"""
+        }
+    }
+
+    environment {
+        // Resolved from Jenkins Global Environment Variables — set in:
+        // Manage Jenkins → System → Global Properties → Environment Variables
+        // HARBOR_REGISTRY  = "<worker-ip>:30002"
+        // HARBOR_PROJECT   = "library"
+        // SONARQUBE_URL    = "http://sonarqube.sonarqube.svc.cluster.local:9000"
+
+        IMAGE_NAME        = "frontend"
+        IMAGE_TAG         = "${BUILD_NUMBER}"
+        FULL_IMAGE        = "${HARBOR_REGISTRY}/${HARBOR_PROJECT}/${IMAGE_NAME}:${IMAGE_TAG}"
+        SONAR_PROJECT_KEY = "frontend"
+        APP_DIR           = "app/src/frontend"
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Build') {
+            steps {
+                container('builder') {
+                    sh """
+                        echo "==> Building frontend..."
+                        cd ${APP_DIR}
+                        go mod download
+                        go build -ldflags="-s -w" -o /tmp/frontend .
+                        echo "==> Build successful"
+                    """
+                }
+            }
+        }
+
+        stage('Unit Tests') {
+            steps {
+                container('builder') {
+                    sh """
+                        echo "==> Running tests..."
+                        cd ${APP_DIR}
+                        go test ./... -v
+                    """
+                }
+            }
+        }
+
+        stage('SonarQube Analysis') {
+            steps {
+                container('sonar-scanner') {
+                    withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
+                        sh """
+                            sonar-scanner \
+                              -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
+                              -Dsonar.sources=${APP_DIR} \
+                              -Dsonar.host.url=${SONARQUBE_URL} \
+                              -Dsonar.login=\${SONAR_TOKEN} \
+                              -Dsonar.go.coverage.reportPaths=coverage.out
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Quality Gate') {
+            steps {
+                timeout(time: 5, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
+                }
+            }
+        }
+
+        stage('Build & Push Image') {
+            steps {
+                container('kaniko') {
+                    sh """
+                        echo "==> Building and pushing image to Harbor..."
+                        /kaniko/executor \
+                          --context=${WORKSPACE}/${APP_DIR} \
+                          --dockerfile=${WORKSPACE}/${APP_DIR}/Dockerfile \
+                          --destination=${FULL_IMAGE} \
+                          --insecure \
+                          --skip-tls-verify \
+                          --cache=true
+                        echo "==> Image pushed: ${FULL_IMAGE}"
+                    """
+                }
+            }
+        }
+
+        stage('Deploy to Kubernetes') {
+            steps {
+                container('kubectl') {
+                    sh """
+                        echo "==> Deploying frontend image: ${FULL_IMAGE}"
+                        kubectl set image deployment/frontend \
+                          frontend=${FULL_IMAGE} \
+                          -n default || echo "Deployment not found, skipping"
+                    """
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "Pipeline passed. Image: ${FULL_IMAGE}"
+        }
+        failure {
+            echo "Pipeline failed."
+        }
+    }
+}

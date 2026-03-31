@@ -19,13 +19,13 @@ FROM --platform=$BUILDPLATFORM eclipse-temurin:24.0.2_12-jdk-noble@sha256:dacac8
 
 WORKDIR /app
 
-COPY ["build.gradle", "gradlew", "./"]
+COPY [ "build.gradle", "gradlew", "./" ]
 COPY gradle gradle
-RUN chmod +x gradlew
+RUN sed -i 's/\r$//' gradlew && chmod +x gradlew
 RUN ./gradlew downloadRepos
 
 COPY . .
-RUN chmod +x gradlew
+RUN sed -i 's/\r$//' gradlew && chmod +x gradlew
 RUN ./gradlew installDist
 
 FROM eclipse-temurin:25.0.2_10-jre-alpine@sha256:f10d6259d0798c1e12179b6bf3b63cea0d6843f7b09c9f9c9c422c50e44379ec

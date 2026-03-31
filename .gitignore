@@ -1,0 +1,30 @@
+# Ignore everything
+/*
+
+# Allow app/src and jenkins
+!app/
+app/*
+!app/src/
+!jenkins/
+!jenkins/Jenkinsfile
+
+# Allow all files under app/src
+app/src/**
+
+# Terraform
+.terraform/
+.terraform.lock.hcl
+terraform.tfstate
+terraform.tfstate.backup
+*.tfstate
+*.tfstate.*
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+*.tfvars.json
+secrets.tfvars
+
+# Kubespray
+kubespray/.venv/
+kubespray/kubespray-src/
