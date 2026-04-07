@@ -73,6 +73,7 @@ spec:
         // are set in Manage Jenkins → System → Global Properties → Environment Variables
         IMAGE_NAME        = "frontend"
         IMAGE_TAG         = "${BUILD_NUMBER}"
+        // HARBOR_REGISTRY uses internal DNS: harbor.harbor.svc.cluster.local
         FULL_IMAGE        = "${HARBOR_REGISTRY}/${HARBOR_PROJECT}/${IMAGE_NAME}:${IMAGE_TAG}"
         SONAR_PROJECT_KEY = "frontend"
         APP_DIR           = "app/src/frontend"
