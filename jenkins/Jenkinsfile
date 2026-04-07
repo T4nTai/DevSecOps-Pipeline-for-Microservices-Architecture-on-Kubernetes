@@ -142,9 +142,9 @@ spec:
                     sh """
                         echo "==> Building and pushing image to Harbor..."
                         /kaniko/executor \
-                          --context=${WORKSPACE}/${APP_DIR} \
-                          --dockerfile=${WORKSPACE}/${APP_DIR}/Dockerfile \
-                          --destination=${FULL_IMAGE} \
+                          --context="${WORKSPACE}/${APP_DIR}" \
+                          --dockerfile="${WORKSPACE}/${APP_DIR}/Dockerfile" \
+                          --destination="${FULL_IMAGE}" \
                           --insecure \
                           --skip-tls-verify \
                           --cache=true
