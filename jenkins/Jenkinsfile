@@ -111,25 +111,22 @@ spec:
             }
         }
 
-        stage('SonarQube Analysis') {
+        stage('SonarQube Analysis & Quality Gate') {
             steps {
                 container('sonar-scanner') {
-                    withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
-                        sh """
-                            sonar-scanner \
-                              -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
-                              -Dsonar.sources=${APP_DIR} \
-                              -Dsonar.host.url=${SONARQUBE_URL} \
-                              -Dsonar.login=\${SONAR_TOKEN} \
-                              -Dsonar.go.coverage.reportPaths=${APP_DIR}/coverage.out
-                        """
+                    withSonarQubeEnv('SonarQube') {
+                        withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
+                            sh """
+                                sonar-scanner \
+                                  -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
+                                  -Dsonar.sources=${APP_DIR} \
+                                  -Dsonar.host.url=${SONARQUBE_URL} \
+                                  -Dsonar.login=\${SONAR_TOKEN} \
+                                  -Dsonar.go.coverage.reportPaths=${APP_DIR}/coverage.out
+                            """
+                        }
                     }
                 }
-            }
-        }
-
-        stage('Quality Gate') {
-            steps {
                 // Requires SonarQube webhook:
                 // SonarQube → Administration → Webhooks → Create
                 // URL: http://jenkins.jenkins.svc.cluster.local:8080/sonarqube-webhook/
