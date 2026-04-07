@@ -165,12 +165,6 @@ spec:
             steps {
                 container('kaniko') {
                     sh """
-                        echo "==> Fetching Harbor credentials from Vault..."
-                        HARBOR_PASS=\$(wget -qO- \
-                          --header="X-Vault-Token: ${VAULT_TOKEN}" \
-                          ${VAULT_ADDR}/v1/secret/data/jenkins \
-                          | grep -o '"harbor_password":"[^"]*"' | cut -d'"' -f4)
-
                         echo "==> Building and pushing image to Harbor..."
                         /kaniko/executor \
                           --context="${WORKSPACE}/${APP_DIR}" \
