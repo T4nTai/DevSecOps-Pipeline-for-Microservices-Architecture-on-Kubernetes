@@ -1,7 +1,6 @@
 pipeline {
     agent {
         kubernetes {
-            label 'k8s-agent'
             defaultContainer 'builder'
             yaml """
 apiVersion: v1
@@ -70,12 +69,8 @@ spec:
     }
 
     environment {
-        // Resolved from Jenkins Global Environment Variables — set in:
-        // Manage Jenkins → System → Global Properties → Environment Variables
-        // HARBOR_REGISTRY  = "<worker-ip>:30002"
-        // HARBOR_PROJECT   = "library"
-        // SONARQUBE_URL    = "http://sonarqube.sonarqube.svc.cluster.local:9000"
-
+        // HARBOR_REGISTRY, HARBOR_PROJECT, SONARQUBE_URL
+        // are set in Manage Jenkins → System → Global Properties → Environment Variables
         IMAGE_NAME        = "frontend"
         IMAGE_TAG         = "${BUILD_NUMBER}"
         FULL_IMAGE        = "${HARBOR_REGISTRY}/${HARBOR_PROJECT}/${IMAGE_NAME}:${IMAGE_TAG}"
@@ -94,13 +89,14 @@ spec:
         stage('Build') {
             steps {
                 container('builder') {
-                    sh """
-                        echo "==> Building frontend..."
-                        cd ${APP_DIR}
-                        go mod download
-                        go build -ldflags="-s -w" -o /tmp/frontend .
-                        echo "==> Build successful"
-                    """
+                    dir("${APP_DIR}") {
+                        sh '''
+                            echo "==> Building frontend..."
+                            go mod download
+                            go build -ldflags="-s -w" -o /tmp/frontend .
+                            echo "==> Build successful"
+                        '''
+                    }
                 }
             }
         }
@@ -108,11 +104,9 @@ spec:
         stage('Unit Tests') {
             steps {
                 container('builder') {
-                    sh """
-                        echo "==> Running tests..."
-                        cd ${APP_DIR}
-                        go test ./... -v
-                    """
+                    dir("${APP_DIR}") {
+                        sh 'go test ./... -v -coverprofile=coverage.out'
+                    }
                 }
             }
         }
@@ -127,7 +121,7 @@ spec:
                               -Dsonar.sources=${APP_DIR} \
                               -Dsonar.host.url=${SONARQUBE_URL} \
                               -Dsonar.login=\${SONAR_TOKEN} \
-                              -Dsonar.go.coverage.reportPaths=coverage.out
+                              -Dsonar.go.coverage.reportPaths=${APP_DIR}/coverage.out
                         """
                     }
                 }
@@ -136,6 +130,9 @@ spec:
 
         stage('Quality Gate') {
             steps {
+                // Requires SonarQube webhook:
+                // SonarQube → Administration → Webhooks → Create
+                // URL: http://jenkins.jenkins.svc.cluster.local:8080/sonarqube-webhook/
                 timeout(time: 5, unit: 'MINUTES') {
                     waitForQualityGate abortPipeline: true
                 }
