@@ -9,7 +9,7 @@ spec:
   serviceAccountName: jenkins
   containers:
     - name: builder
-      image: golang:1.26-alpine
+      image: golang:1.25-alpine
       command: ["sleep", "infinity"]
       resources:
         requests:
@@ -40,12 +40,12 @@ spec:
       command: ["sleep", "infinity"]
       resources:
         requests:
-          cpu: "500m"
+          cpu: "300m"
           memory: "512Mi"
         limits:
           cpu: "800m"
-          memory: "2Gi"
-      volumeMounts: 
+          memory: "1Gi"
+      volumeMounts:
         - name: kaniko-secret
           mountPath: /kaniko/.docker
 
@@ -109,25 +109,22 @@ spec:
             }
         }
 
-        stage('SonarQube Analysis') {
+        stage('SonarQube Analysis & Quality Gate') {
             steps {
                 container('sonar-scanner') {
-                    withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
-                        sh """
-                            sonar-scanner \
-                              -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
-                              -Dsonar.sources=${APP_DIR} \
-                              -Dsonar.host.url=${SONARQUBE_URL} \
-                              -Dsonar.login=\${SONAR_TOKEN} \
-                              -Dsonar.go.coverage.reportPaths=${APP_DIR}/coverage.out
-                        """
+                    withSonarQubeEnv('SonarQube') {
+                        withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
+                            sh """
+                                sonar-scanner \
+                                  -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
+                                  -Dsonar.sources=${APP_DIR} \
+                                  -Dsonar.host.url=${SONARQUBE_URL} \
+                                  -Dsonar.login=\${SONAR_TOKEN} \
+                                  -Dsonar.go.coverage.reportPaths=${APP_DIR}/coverage.out
+                            """
+                        }
                     }
                 }
-            }
-        }
-
-        stage('Quality Gate') {
-            steps {
                 timeout(time: 5, unit: 'MINUTES') {
                     waitForQualityGate abortPipeline: true
                 }
@@ -140,9 +137,9 @@ spec:
                     sh """
                         echo "==> Building and pushing image to Harbor..."
                         /kaniko/executor \
-                          --context=${WORKSPACE}/${APP_DIR} \
-                          --dockerfile=${WORKSPACE}/${APP_DIR}/Dockerfile \
-                          --destination=${FULL_IMAGE} \
+                          --context="${WORKSPACE}/${APP_DIR}" \
+                          --dockerfile="${WORKSPACE}/${APP_DIR}/Dockerfile" \
+                          --destination="${FULL_IMAGE}" \
                           --insecure \
                           --skip-tls-verify \
                           --cache=true
