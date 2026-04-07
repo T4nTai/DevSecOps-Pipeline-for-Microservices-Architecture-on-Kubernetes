@@ -9,14 +9,14 @@ spec:
   serviceAccountName: jenkins
   containers:
     - name: builder
-      image: golang:1.25-alpine
+      image: golang:1.26-alpine
       command: ["sleep", "infinity"]
       resources:
         requests:
-          cpu: "300m"
+          cpu: "100m"
           memory: "512Mi"
         limits:
-          cpu: "800m"
+          cpu: "500m"
           memory: "1Gi"
       env:
         - name: GOPATH
@@ -29,19 +29,30 @@ spec:
       command: ["sleep", "infinity"]
       resources:
         requests:
-          cpu: "200m"
+          cpu: "100m"
           memory: "256Mi"
         limits:
-          cpu: "500m"
+          cpu: "300m"
           memory: "512Mi"
+
+    - name: checkov
+      image: bridgecrew/checkov:latest
+      command: ["sleep", "infinity"]
+      resources:
+        requests:
+          cpu: "50m"
+          memory: "128Mi"
+        limits:
+          cpu: "200m"
+          memory: "256Mi"
 
     - name: kaniko
       image: gcr.io/kaniko-project/executor:debug
       command: ["sleep", "infinity"]
       resources:
         requests:
-          cpu: "800m"
-          memory: "2Gi"
+          cpu: "200m"
+          memory: "1Gi"
         limits:
           cpu: "1000m"
           memory: "4Gi"
@@ -69,11 +80,15 @@ spec:
     }
 
     environment {
+        // HARBOR_REGISTRY, HARBOR_PROJECT, SONARQUBE_URL
+        // set in Manage Jenkins → System → Global Properties → Environment Variables
         IMAGE_NAME        = "frontend"
         IMAGE_TAG         = "${BUILD_NUMBER}"
         FULL_IMAGE        = "${HARBOR_REGISTRY}/${HARBOR_PROJECT}/${IMAGE_NAME}:${IMAGE_TAG}"
         SONAR_PROJECT_KEY = "frontend"
         APP_DIR           = "app/src/frontend"
+        VAULT_ADDR        = "http://vault.vault.svc.cluster.local:8200"
+        VAULT_TOKEN       = "root"  // dev mode only — use AppRole in production
     }
 
     stages {
@@ -81,6 +96,21 @@ spec:
         stage('Checkout') {
             steps {
                 checkout scm
+            }
+        }
+
+        stage('Checkov — IaC Scan') {
+            steps {
+                container('checkov') {
+                    sh '''
+                        echo "==> Running Checkov IaC scan on Terraform..."
+                        checkov -d terraform/ \
+                          --output cli \
+                          --soft-fail \
+                          --quiet
+                        echo "==> Checkov scan complete"
+                    '''
+                }
             }
         }
 
@@ -135,6 +165,12 @@ spec:
             steps {
                 container('kaniko') {
                     sh """
+                        echo "==> Fetching Harbor credentials from Vault..."
+                        HARBOR_PASS=\$(wget -qO- \
+                          --header="X-Vault-Token: ${VAULT_TOKEN}" \
+                          ${VAULT_ADDR}/v1/secret/data/jenkins \
+                          | grep -o '"harbor_password":"[^"]*"' | cut -d'"' -f4)
+
                         echo "==> Building and pushing image to Harbor..."
                         /kaniko/executor \
                           --context="${WORKSPACE}/${APP_DIR}" \
