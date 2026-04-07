@@ -9,7 +9,7 @@ spec:
   serviceAccountName: jenkins
   containers:
     - name: builder
-      image: golang:1.25-alpine
+      image: golang:1.26-alpine
       command: ["sleep", "infinity"]
       resources:
         requests:
