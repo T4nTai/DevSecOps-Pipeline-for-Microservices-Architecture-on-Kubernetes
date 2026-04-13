@@ -193,7 +193,7 @@ spec:
                             sed -i 's|image: .*frontend:.*|image: ${FULL_IMAGE}|' \
                               k8s/apps/frontend/deployment.yaml
 
-                            
+                            git config --global --add safe.directory "${WORKSPACE}"
                             git config user.email "jenkins@ci.local"
                             git config user.name "Jenkins"
 
