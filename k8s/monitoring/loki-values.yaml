@@ -1,0 +1,55 @@
+# Loki — Log aggregation (single binary / monolithic mode for simplicity)
+deploymentMode: SingleBinary
+
+loki:
+  auth_enabled: false   # No multi-tenancy for dev
+
+  commonConfig:
+    replication_factor: 1
+
+  storage:
+    type: filesystem    # Local storage — no S3 needed for dev
+
+  schemaConfig:
+    configs:
+      - from: "2024-01-01"
+        store: tsdb
+        object_store: filesystem
+        schema: v13
+        index:
+          prefix: loki_index_
+          period: 24h
+
+singleBinary:
+  replicas: 1
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 300m
+      memory: 512Mi
+
+  persistence:
+    enabled: true
+    storageClass: ebs-sc
+    size: 10Gi
+
+# Expose Loki via NodePort for external access if needed
+# Grafana accesses Loki internally via ClusterIP (no NodePort needed)
+service:
+  type: ClusterIP
+  port: 3100
+
+# Promtail — DaemonSet that ships pod logs to Loki
+promtail:
+  enabled: false   # Deployed separately via promtail chart
+
+# Disable unused components
+backend:
+  replicas: 0
+read:
+  replicas: 0
+write:
+  replicas: 0

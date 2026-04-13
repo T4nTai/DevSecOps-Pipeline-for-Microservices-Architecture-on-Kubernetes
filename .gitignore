@@ -1,12 +1,16 @@
 # Ignore everything
 /*
 
-# Allow app/src and jenkins
+# Allow app/src, jenkins, k8s, terraform, connect.sh
 !app/
 app/*
 !app/src/
 !jenkins/
 !jenkins/Jenkinsfile
+!k8s/
+!connect.sh
+!terraform/
+!README.md
 
 # Allow all files under app/src
 app/src/**

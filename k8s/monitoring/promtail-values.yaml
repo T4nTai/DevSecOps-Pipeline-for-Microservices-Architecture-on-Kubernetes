@@ -1,0 +1,21 @@
+# Promtail — DaemonSet agent that tails pod logs and ships them to Loki
+
+config:
+  clients:
+    - url: http://loki.monitoring.svc.cluster.local:3100/loki/api/v1/push
+
+  snippets:
+    pipelineStages:
+      - cri: {}   # Parse container runtime log format
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 128Mi
+
+tolerations:
+  - effect: NoSchedule
+    operator: Exists   # Run on all nodes including control-plane

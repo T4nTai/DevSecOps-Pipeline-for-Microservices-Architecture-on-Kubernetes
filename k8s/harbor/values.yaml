@@ -1,0 +1,108 @@
+expose:
+  type: nodePort
+  nodePort:
+    ports:
+      http:
+        nodePort: 30002      # Harbor UI: http://<worker-ip>:30002
+      notary:
+        nodePort: 30004
+
+  tls:
+    enabled: false           # No TLS for dev — simplifies Docker daemon config
+
+# externalURL is set dynamically by install-tools.sh using the worker's private IP
+# so Jenkins pods and K8s nodes (inside the VPC) can reach Harbor
+# Local browser access goes via SSH tunnel: http://localhost:8002
+externalURL: http://WORKER_PRIVATE_IP:30002
+
+# Persistence using ebs-sc-provisioner
+persistence:
+  enabled: true
+  resourcePolicy: "keep"
+  persistentVolumeClaim:
+    registry:
+      storageClass: "ebs-sc"
+      size: 10Gi
+    jobservice:
+      jobLog:
+        storageClass: "ebs-sc"
+        size: 1Gi
+    database:
+      storageClass: "ebs-sc"
+      size: 1Gi
+    redis:
+      storageClass: "ebs-sc"
+      size: 1Gi
+    trivy:
+      storageClass: "ebs-sc"
+      size: 5Gi
+
+# Admin password
+harborAdminPassword: "Harbor12345"
+
+# Reduce resource usage for B2s node
+core:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+jobservice:
+  replicas: 1
+  updateStrategy:
+    type: Recreate   # stop old pod first before starting new — avoids EBS multi-attach
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+registry:
+  replicas: 1
+  updateStrategy:
+    type: Recreate   # stop old pod first before starting new — avoids EBS multi-attach
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+trivy:
+  enabled: true              # Built-in Trivy scanner in Harbor
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+notary:
+  enabled: false             # Disable notary to save memory
+
+database:
+  internal:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+redis:
+  internal:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi

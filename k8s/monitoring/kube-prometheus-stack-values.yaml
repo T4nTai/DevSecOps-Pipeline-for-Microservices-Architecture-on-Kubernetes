@@ -1,0 +1,81 @@
+# kube-prometheus-stack — Prometheus + Grafana + Alertmanager
+# Tuned for t3.large worker nodes (2 vCPU, 8GB RAM)
+
+grafana:
+  enabled: true
+
+  service:
+    type: NodePort
+    nodePort: 30030
+
+  adminPassword: "admin"   # Change after first login
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 300m
+      memory: 256Mi
+
+  # Pre-configure Loki as a datasource
+  additionalDataSources:
+    - name: Loki
+      type: loki
+      url: http://loki.monitoring.svc.cluster.local:3100
+      access: proxy
+      isDefault: false
+
+prometheus:
+  prometheusSpec:
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: ebs-sc
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 10Gi
+
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+
+    retention: 7d
+    retentionSize: "8GB"
+
+  service:
+    type: NodePort
+    nodePort: 30090
+
+alertmanager:
+  alertmanagerSpec:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+
+  service:
+    type: NodePort
+    nodePort: 30093
+
+# Node exporter — collects host-level metrics from all nodes
+nodeExporter:
+  enabled: true
+
+# kube-state-metrics — exposes K8s object metrics
+kubeStateMetrics:
+  enabled: true
+
+# Reduce default scrape intervals to lower resource usage
+prometheus:
+  prometheusSpec:
+    scrapeInterval: "30s"
+    evaluationInterval: "30s"
