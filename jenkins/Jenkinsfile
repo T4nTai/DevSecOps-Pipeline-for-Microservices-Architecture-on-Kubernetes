@@ -179,15 +179,31 @@ spec:
             }
         }
 
-        stage('Deploy to Kubernetes') {
+        stage('Update Manifest') {
             steps {
-                container('kubectl') {
-                    sh """
-                        echo "==> Deploying frontend image: ${FULL_IMAGE}"
-                        kubectl set image deployment/frontend \
-                          frontend=${FULL_IMAGE} \
-                          -n default || echo "Deployment not found, skipping"
-                    """
+                container('builder') {
+                    withCredentials([usernamePassword(
+                        credentialsId: 'git-credentials',
+                        usernameVariable: 'GIT_USER',
+                        passwordVariable: 'GIT_TOKEN'
+                    )]) {
+                        sh """
+                            echo "==> Updating image tag in k8s manifest..."
+
+                            # Update the image line in the deployment manifest
+                            sed -i 's|image: .*frontend:.*|image: ${FULL_IMAGE}|' \
+                              k8s/apps/frontend/deployment.yaml
+
+                            # Configure git
+                            git config user.email "jenkins@ci.local"
+                            git config user.name "Jenkins"
+
+                            # Commit and push — ArgoCD will pick up the change
+                            git add k8s/apps/frontend/deployment.yaml
+                            git commit -m "ci: update frontend image to ${IMAGE_TAG}"
+                            git push https://\${GIT_USER}:\${GIT_TOKEN}@\$(git remote get-url origin | sed 's|https://||') HEAD:main
+                        """
+                    }
                 }
             }
         }
