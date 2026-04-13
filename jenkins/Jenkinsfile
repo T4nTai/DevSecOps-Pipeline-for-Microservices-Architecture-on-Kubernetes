@@ -80,15 +80,13 @@ spec:
     }
 
     environment {
-        // HARBOR_REGISTRY, HARBOR_PROJECT, SONARQUBE_URL
-        // set in Manage Jenkins → System → Global Properties → Environment Variables
         IMAGE_NAME        = "frontend"
         IMAGE_TAG         = "${BUILD_NUMBER}"
         FULL_IMAGE        = "${HARBOR_REGISTRY}/${HARBOR_PROJECT}/${IMAGE_NAME}:${IMAGE_TAG}"
         SONAR_PROJECT_KEY = "frontend"
         APP_DIR           = "app/src/frontend"
         VAULT_ADDR        = "http://vault.vault.svc.cluster.local:8200"
-        VAULT_TOKEN       = "root"  // dev mode only — use AppRole in production
+        VAULT_TOKEN       = "root"  
     }
 
     stages {
@@ -190,15 +188,16 @@ spec:
                         sh """
                             echo "==> Updating image tag in k8s manifest..."
 
-                            # Update the image line in the deployment manifest
+                            apk add --no-cache git
+
                             sed -i 's|image: .*frontend:.*|image: ${FULL_IMAGE}|' \
                               k8s/apps/frontend/deployment.yaml
 
-                            # Configure git
+                            
                             git config user.email "jenkins@ci.local"
                             git config user.name "Jenkins"
 
-                            # Commit and push — ArgoCD will pick up the change
+                            
                             git add k8s/apps/frontend/deployment.yaml
                             git commit -m "ci: update frontend image to ${IMAGE_TAG}"
                             git push https://\${GIT_USER}:\${GIT_TOKEN}@\$(git remote get-url origin | sed 's|https://||') HEAD:main
