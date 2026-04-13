@@ -18,7 +18,7 @@ spec:
 
       containers:
         - name: frontend
-          image: HARBOR_REGISTRY/HARBOR_PROJECT/frontend:latest   # updated by Jenkins
+          image: 10.0.20.239:30002/your-project/frontend:latest   # updated by Jenkins
           ports:
             - containerPort: 8080
           env:
