@@ -18,7 +18,7 @@ spec:
 
       containers:
         - name: frontend
-          image: 10.0.20.239:30002/your-project/frontend:latest   # updated by Jenkins
+          image: 10.0.20.209:30002/library/frontend:10
           ports:
             - containerPort: 8080
           env:
