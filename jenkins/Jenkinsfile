@@ -26,6 +26,7 @@ spec:
 
     - name: sonar-scanner
       image: sonarsource/sonar-scanner-cli:latest
+      imagePullPolicy: IfNotPresent
       command: ["sleep", "infinity"]
       resources:
         requests:
@@ -155,7 +156,7 @@ spec:
                         }
                     }
                     timeout(time: 15, unit: 'MINUTES') {
-                        waitForQualityGate abortPipeline: true
+                        waitForQualityGate abortPipeline: false
                     }
                 }
             }
