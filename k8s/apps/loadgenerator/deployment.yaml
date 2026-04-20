@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loadgenerator
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: loadgenerator
+  template:
+    metadata:
+      labels:
+        app: loadgenerator
+    spec:
+      restartPolicy: Always
+      initContainers:
+        - name: wait-frontend
+          image: busybox:latest
+          command: ['sh', '-c', 'until wget -q --spider http://frontend/; do echo waiting for frontend; sleep 2; done']
+      containers:
+        - name: loadgenerator
+          image: gcr.io/google-samples/microservices-demo/loadgenerator:v0.10.1
+          env:
+            - name: FRONTEND_ADDR
+              value: "frontend:80"
+            - name: USERS
+              value: "10"
+          resources:
+            requests:
+              cpu: "300m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"

@@ -1,24 +1,25 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: frontend
+  name: online-boutique
   namespace: argocd
 spec:
   project: default
 
   source:
-    # Replace with your actual Git repo URL
-    repoURL: https://github.com/YOUR_USERNAME/YOUR_REPO.git
-    targetRevision: main
-    path: k8s/apps/frontend   # ArgoCD watches this directory
+    repoURL: https://github.com/T4nTai/DevSecOps-Pipeline-for-Microservices-Architecture-on-Kubernetes.git
+    targetRevision: HEAD
+    path: k8s/apps
+    directory:
+      recurse: true
 
   destination:
-    server: https://kubernetes.default.svc   # deploy to the same cluster
+    server: https://kubernetes.default.svc
     namespace: default
 
   syncPolicy:
     automated:
-      prune: true      # delete resources removed from Git
-      selfHeal: true   # revert manual kubectl changes
+      prune: true
+      selfHeal: true
     syncOptions:
       - CreateNamespace=true

@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: productcatalogservice
+  namespace: default
+spec:
+  selector:
+    app: productcatalogservice
+  ports:
+    - port: 3550
+      targetPort: 3550
