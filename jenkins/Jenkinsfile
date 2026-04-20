@@ -144,17 +144,16 @@ spec:
                 ) {
                     container('sonar-scanner') {
                         withSonarQubeEnv('SonarQube') {
-                            sh """
+                            sh '''
                                 sonar-scanner \
-                                  -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
-                                  -Dsonar.sources=${APP_DIR} \
-                                  -Dsonar.host.url=${SONARQUBE_URL} \
-                                  -Dsonar.login=${SONAR_TOKEN} \
-                                  -Dsonar.go.coverage.reportPaths=${APP_DIR}/coverage.out
-                            """
+                                  -Dsonar.projectKey=$SONAR_PROJECT_KEY \
+                                  -Dsonar.sources=$APP_DIR \
+                                  -Dsonar.token=$SONAR_TOKEN \
+                                  -Dsonar.go.coverage.reportPaths=$APP_DIR/coverage.out
+                            '''
                         }
                     }
-                    timeout(time: 5, unit: 'MINUTES') {
+                    timeout(time: 15, unit: 'MINUTES') {
                         waitForQualityGate abortPipeline: true
                     }
                 }
