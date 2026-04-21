@@ -17,7 +17,7 @@ spec:
         - name: harbor-credentials # Secret to pull from Harbor
       containers:
         - name: frontend
-          image: 10.0.20.60:30002/library/frontend:5
+          image: 10.0.20.60:30002/library/frontend:6
           ports:
             - containerPort: 8080
           env:
