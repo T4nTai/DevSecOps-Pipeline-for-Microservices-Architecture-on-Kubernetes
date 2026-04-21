@@ -4,10 +4,9 @@ metadata:
   name: frontend
   namespace: default
 spec:
-  type: NodePort
+  type: LoadBalancer
   selector:
     app: frontend
   ports:
     - port: 80
       targetPort: 8080
-      nodePort: 30010
