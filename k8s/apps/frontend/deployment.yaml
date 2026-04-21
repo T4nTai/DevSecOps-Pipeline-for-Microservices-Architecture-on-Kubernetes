@@ -18,7 +18,7 @@ spec:
 
       containers:
         - name: frontend
-          image: 10.0.20.209:30002/library/frontend:12
+          image: 10.0.20.60:30002/library/frontend:2
           ports:
             - containerPort: 8080
           env:
