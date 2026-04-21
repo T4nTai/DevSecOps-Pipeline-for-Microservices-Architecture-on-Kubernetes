@@ -10,11 +10,12 @@ spec:
   containers:
     - name: builder
       image: golang:1.26-alpine
+      imagePullPolicy: IfNotPresent
       command: ["sleep", "infinity"]
       resources:
         requests:
-          cpu: "100m"
-          memory: "512Mi"
+          cpu: "50m"
+          memory: "256Mi"
         limits:
           cpu: "500m"
           memory: "1Gi"
@@ -25,23 +26,24 @@ spec:
           value: "0"
 
     - name: sonar-scanner
-      image: sonarsource/sonar-scanner-cli:latest
+      image: sonarsource/sonar-scanner-cli:7.1.0
       imagePullPolicy: IfNotPresent
       command: ["sleep", "infinity"]
       resources:
         requests:
-          cpu: "100m"
+          cpu: "50m"
           memory: "256Mi"
         limits:
           cpu: "300m"
           memory: "512Mi"
 
     - name: checkov
-      image: bridgecrew/checkov:latest
+      image: bridgecrew/checkov:3.2.350
+      imagePullPolicy: IfNotPresent
       command: ["sleep", "infinity"]
       resources:
         requests:
-          cpu: "50m"
+          cpu: "25m"
           memory: "128Mi"
         limits:
           cpu: "200m"
@@ -49,17 +51,57 @@ spec:
 
     - name: kaniko
       image: gcr.io/kaniko-project/executor:debug
+      imagePullPolicy: IfNotPresent
       command: ["sleep", "infinity"]
       resources:
         requests:
-          cpu: "200m"
-          memory: "1Gi"
+          cpu: "100m"
+          memory: "512Mi"
         limits:
           cpu: "1000m"
-          memory: "4Gi"
+          memory: "2Gi"
       volumeMounts:
         - name: kaniko-secret
           mountPath: /kaniko/.docker
+
+    - name: trivy
+      image: aquasec/trivy:0.61.0
+      imagePullPolicy: IfNotPresent
+      command: ["sleep", "infinity"]
+      resources:
+        requests:
+          cpu: "50m"
+          memory: "256Mi"
+        limits:
+          cpu: "500m"
+          memory: "1Gi"
+      volumeMounts:
+        - name: kaniko-secret
+          mountPath: /root/.docker
+
+    - name: yq
+      image: mikefarah/yq:4.44.3
+      imagePullPolicy: IfNotPresent
+      command: ["sleep", "infinity"]
+      resources:
+        requests:
+          cpu: "25m"
+          memory: "64Mi"
+        limits:
+          cpu: "100m"
+          memory: "128Mi"
+
+    - name: manifest-updater
+      image: alpine/git:2.47.2
+      imagePullPolicy: IfNotPresent
+      command: ["sleep", "infinity"]
+      resources:
+        requests:
+          cpu: "25m"
+          memory: "64Mi"
+        limits:
+          cpu: "100m"
+          memory: "128Mi"
 
   volumes:
     - name: kaniko-secret
@@ -88,27 +130,30 @@ spec:
             }
         }
 
-        stage('Unit Tests') {
-            steps {
-                container('builder') {
-                    dir("${APP_DIR}") {
-                        sh 'go test ./... -v -coverprofile=coverage.out'
+        stage('Test & IaC Scan') {
+            parallel {
+                stage('Unit Tests') {
+                    steps {
+                        container('builder') {
+                            dir("${APP_DIR}") {
+                                sh 'go test ./... -v -coverprofile=coverage.out'
+                            }
+                        }
                     }
                 }
-            }
-        }
-
-        stage('Checkov — IaC Scan') {
-            steps {
-                container('checkov') {
-                    sh '''
-                        echo "==> Running Checkov IaC scan on Terraform..."
-                        checkov -d terraform/ \
-                          --output cli \
-                          --soft-fail \
-                          --quiet
-                        echo "==> Checkov scan complete"
-                    '''
+                stage('Checkov — IaC Scan') {
+                    steps {
+                        container('checkov') {
+                            sh '''
+                                echo "==> Running Checkov IaC scan on Terraform..."
+                                checkov -d terraform/ \
+                                  --output cli \
+                                  --soft-fail \
+                                  --quiet
+                                echo "==> Checkov scan complete"
+                            '''
+                        }
+                    }
                 }
             }
         }
@@ -119,7 +164,6 @@ spec:
                     dir("${APP_DIR}") {
                         sh '''
                             echo "==> Building frontend..."
-                            go mod download
                             go build -ldflags="-s -w" -o /tmp/frontend .
                             echo "==> Build successful"
                         '''
@@ -197,6 +241,23 @@ spec:
             }
         }
 
+        stage('Trivy — Image Scan') {
+            steps {
+                container('trivy') {
+                    sh '''
+                        echo "==> Scanning image with Trivy..."
+                        trivy image \
+                          --exit-code 0 \
+                          --severity HIGH,CRITICAL \
+                          --no-progress \
+                          --insecure \
+                          $FULL_IMAGE
+                        echo "==> Trivy scan complete"
+                    '''
+                }
+            }
+        }
+
         stage('Update Manifest') {
             steps {
                 withVault(
@@ -213,15 +274,15 @@ spec:
                         ]
                     ]]
                 ) {
-                    container('builder') {
+                    container('yq') {
                         sh """
                             echo "==> Updating image tag in k8s manifest..."
-
-                            apk add --no-cache git
-
-                            sed -i 's|image: .*frontend:.*|image: ${FULL_IMAGE}|' \
-                              k8s/apps/frontend/deployment.yaml
-
+                            yq e '.spec.template.spec.containers[0].image = "${FULL_IMAGE}"' \
+                              -i k8s/apps/frontend/deployment.yaml
+                        """
+                    }
+                    container('manifest-updater') {
+                        sh """
                             git config --global --add safe.directory "${WORKSPACE}"
                             git config user.email "jenkins@ci.local"
                             git config user.name "Jenkins"
@@ -238,10 +299,22 @@ spec:
 
     post {
         success {
-            echo "Pipeline passed. Image: ${FULL_IMAGE}"
+            withCredentials([string(credentialsId: 'slack-webhook-url', variable: 'SLACK_URL')]) {
+                sh """
+                    curl -s -X POST \$SLACK_URL \
+                      -H 'Content-type: application/json' \
+                      --data '{"text":" Build #${BUILD_NUMBER} passed. Image: ${FULL_IMAGE} — ${BUILD_URL}"}'
+                """
+            }
         }
         failure {
-            echo "Pipeline failed."
+            withCredentials([string(credentialsId: 'slack-webhook-url', variable: 'SLACK_URL')]) {
+                sh """
+                    curl -s -X POST \$SLACK_URL \
+                      -H 'Content-type: application/json' \
+                      --data '{"text":" Build #${BUILD_NUMBER} failed — ${BUILD_URL}"}'
+                """
+            }
         }
     }
 }
