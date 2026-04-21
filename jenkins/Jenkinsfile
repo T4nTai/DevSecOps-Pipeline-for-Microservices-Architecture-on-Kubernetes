@@ -301,18 +301,20 @@ spec:
         success {
             withCredentials([string(credentialsId: 'slack-webhook-url', variable: 'SLACK_URL')]) {
                 sh """
-                    curl -s -X POST \$SLACK_URL \
-                      -H 'Content-type: application/json' \
-                      --data '{"text":" Build #${BUILD_NUMBER} passed. Image: ${FULL_IMAGE} — ${BUILD_URL}"}'
+                    wget -q -O /dev/null \
+                      --header='Content-Type: application/json' \
+                      --post-data='{"text":"Build #${BUILD_NUMBER} passed. Image: ${FULL_IMAGE} — ${BUILD_URL}"}' \
+                      \$SLACK_URL
                 """
             }
         }
         failure {
             withCredentials([string(credentialsId: 'slack-webhook-url', variable: 'SLACK_URL')]) {
                 sh """
-                    curl -s -X POST \$SLACK_URL \
-                      -H 'Content-type: application/json' \
-                      --data '{"text":" Build #${BUILD_NUMBER} failed — ${BUILD_URL}"}'
+                    wget -q -O /dev/null \
+                      --header='Content-Type: application/json' \
+                      --post-data='{"text":"Build #${BUILD_NUMBER} failed — ${BUILD_URL}"}' \
+                      \$SLACK_URL
                 """
             }
         }
