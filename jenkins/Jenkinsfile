@@ -194,6 +194,7 @@ spec:
                                   -Dsonar.projectKey=$SONAR_PROJECT_KEY \
                                   -Dsonar.sources=$APP_DIR \
                                   -Dsonar.token=$SONAR_TOKEN \
+                                  -Dsonar.host.url=http://sonarqube.sonarqube.svc.cluster.local:9000 \
                                   -Dsonar.scm.disabled=true \
                                   -Dsonar.go.coverage.reportPaths=$APP_DIR/coverage.out
                             '''
