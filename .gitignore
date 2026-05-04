@@ -1,34 +1,38 @@
-# Ignore everything
+# Ignore everything at root, then allowlist what should be committed
 /*
 
-# Allow app/src, jenkins, k8s, terraform, connect.sh
+# Core project files
+!README.md
+!connect.sh
+!secrets.list
+!docker-compose.yml
+
+# Source directories
+!scripts/
+!k8s/
+!terraform/
+!jenkins/
 !app/
 app/*
 !app/src/
-!jenkins/
-!jenkins/Jenkinsfile
-!k8s/
-!connect.sh
-!terraform/
-!README.md
-
-# Allow all files under app/src
 app/src/**
 
-# Terraform
-.terraform/
-.terraform.lock.hcl
-terraform.tfstate
-terraform.tfstate.backup
+# Terraform — never commit state or local overrides
+**/.terraform/
+**/.terraform.lock.hcl
 *.tfstate
 *.tfstate.*
-override.tf
-override.tf.json
 *_override.tf
 *_override.tf.json
-*.tfvars.json
 secrets.tfvars
+*.tfvars.json
 
 # Kubespray
 kubespray/.venv/
 kubespray/kubespray-src/
+
+# Runtime state — never commit
+.deploy-state.env
+.env
+.env.secret
+.kubeconfig

@@ -188,7 +188,7 @@ spec:
                     ]]
                 ) {
                     container('sonar-scanner') {
-                        withSonarQubeEnv('SonarQube') {
+                        withSonarQubeEnv('sonarqube') {
                             sh '''
                                 sonar-scanner \
                                   -Dsonar.projectKey=$SONAR_PROJECT_KEY \
