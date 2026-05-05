@@ -1,42 +1,53 @@
+output "vpc_id" {
+  value = module.vpc.vpc_id
+}
+
+# ── Kubespray cluster outputs ─────────────────────────────────────────────────
+
 output "bastion_public_ip" {
-  description = "Public IP of the bastion host (your SSH entry point)"
-  value       = aws_instance.bastion.public_ip
+  value = var.use_eks ? null : module.compute[0].bastion_public_ip
+}
+
+output "control_plane_private_ips" {
+  value = var.use_eks ? null : module.compute[0].control_plane_private_ips
 }
 
 output "control_plane_private_ip" {
-  description = "Private IP of the Kubernetes control-plane node"
-  value       = aws_instance.control_plane.private_ip
+  value       = var.use_eks ? null : module.compute[0].control_plane_private_ips[0]
+  description = "First control plane IP (for SSH tunnel)"
 }
 
 output "worker_private_ips" {
-  description = "Private IPs of the Kubernetes worker nodes"
-  value       = aws_instance.worker[*].private_ip
+  value = var.use_eks ? null : module.compute[0].worker_private_ips
+}
+
+output "api_nlb_dns" {
+  value = var.use_eks ? null : module.nlb[0].dns_name
 }
 
 output "ssh_bastion" {
-  description = "SSH command for the bastion host"
-  value       = "ssh -i ~/.ssh/id_ed25519 ${var.admin_username}@${aws_instance.bastion.public_ip}"
+  value = var.use_eks ? null : module.compute[0].ssh_bastion
 }
 
-output "ssh_control_plane" {
-  description = "SSH command for the control-plane node (via bastion ProxyJump)"
-  value       = "ssh -i ~/.ssh/id_ed25519 -J ${var.admin_username}@${aws_instance.bastion.public_ip} ${var.admin_username}@${aws_instance.control_plane.private_ip}"
+output "ssh_control_planes" {
+  value = var.use_eks ? null : module.compute[0].ssh_control_planes
 }
 
 output "ssh_workers" {
-  description = "SSH commands for worker nodes (via bastion ProxyJump)"
-  value = [
-    for w in aws_instance.worker :
-    "ssh -i ~/.ssh/id_ed25519 -J ${var.admin_username}@${aws_instance.bastion.public_ip} ${var.admin_username}@${w.private_ip}"
-  ]
+  value = var.use_eks ? null : module.compute[0].ssh_workers
 }
 
-output "k8s_api_endpoint" {
-  description = "Kubernetes API server endpoint (accessible from bastion or VPN)"
-  value       = "https://${aws_instance.control_plane.private_ip}:6443"
+# ── EKS cluster outputs ───────────────────────────────────────────────────────
+
+output "eks_cluster_name" {
+  value = var.use_eks ? module.eks[0].cluster_name : null
 }
 
-output "vpc_id" {
-  description = "AWS VPC ID"
-  value       = aws_vpc.k8s.id
+output "eks_cluster_endpoint" {
+  value = var.use_eks ? module.eks[0].cluster_endpoint : null
+}
+
+output "eks_kubeconfig_command" {
+  value       = var.use_eks ? module.eks[0].kubeconfig_command : null
+  description = "Run this after apply to configure kubectl"
 }

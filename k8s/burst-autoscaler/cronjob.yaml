@@ -1,0 +1,64 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: burst-autoscaler
+  namespace: kube-system
+spec:
+  schedule: "*/2 * * * *"          # chạy mỗi 2 phút
+  concurrencyPolicy: Forbid         # không chạy song song nếu lần trước chưa xong
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 300    # tối đa 5 phút mỗi run
+      template:
+        spec:
+          serviceAccountName: burst-autoscaler
+          restartPolicy: Never
+
+          # Tolerations để pod có thể chạy trên control-plane nếu workers đầy
+          tolerations:
+            - key: node-role.kubernetes.io/control-plane
+              operator: Exists
+              effect: NoSchedule
+
+          containers:
+            - name: autoscaler
+              image: alpine/k8s:1.29.12
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/bash", "/scripts/autoscaler.sh"]
+
+              env:
+                - name: AWS_REGION
+                  value: "ap-southeast-1"
+                - name: IDLE_TIMEOUT
+                  value: "300"        # stop sau 5 phút idle
+                # Đọc từ ConfigMap state (được tạo bởi step 01)
+                - name: BURST_WORKER_ID
+                  valueFrom:
+                    configMapKeyRef:
+                      name: burst-autoscaler-config
+                      key: burst_worker_id
+                - name: BURST_WORKER_IP
+                  valueFrom:
+                    configMapKeyRef:
+                      name: burst-autoscaler-config
+                      key: burst_worker_ip
+
+              volumeMounts:
+                - name: script
+                  mountPath: /scripts
+
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  cpu: 200m
+                  memory: 128Mi
+
+          volumes:
+            - name: script
+              configMap:
+                name: burst-autoscaler-script
+                defaultMode: 0755

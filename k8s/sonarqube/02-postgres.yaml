@@ -20,7 +20,10 @@ spec:
             - name: POSTGRES_USER
               value: sonar
             - name: POSTGRES_PASSWORD
-              value: sonar
+              valueFrom:
+                secretKeyRef:
+                  name: sonarqube-db-secret
+                  key: password
             - name: POSTGRES_DB
               value: sonarqube
             - name: PGDATA

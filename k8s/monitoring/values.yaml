@@ -1,0 +1,87 @@
+grafana:
+  enabled: true
+
+  adminPassword: "GRAFANA_ADMIN_PASSWORD_PLACEHOLDER"
+
+  service:
+    type: ClusterIP
+
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    annotations:
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    hosts:
+      - grafana.tools.votantai.me
+    path: /
+    pathType: Prefix
+    tls:
+      - hosts:
+          - grafana.tools.votantai.me
+        secretName: tools-wildcard-tls
+
+  grafana.ini:
+    server:
+      root_url: https://grafana.tools.votantai.me
+      serve_from_sub_path: false
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 300m
+      memory: 512Mi
+
+  additionalDataSources:
+    - name: Loki
+      type: loki
+      url: http://loki.monitoring.svc.cluster.local:3100
+      access: proxy
+      isDefault: false
+
+prometheus:
+  service:
+    type: ClusterIP
+
+  prometheusSpec:
+    scrapeInterval: "30s"
+    evaluationInterval: "30s"
+    retention: 7d
+    retentionSize: "8GB"
+
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: ebs-sc
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 10Gi
+
+alertmanager:
+  service:
+    type: ClusterIP
+
+  alertmanagerSpec:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+
+nodeExporter:
+  enabled: true
+
+kubeStateMetrics:
+  enabled: true

@@ -1,0 +1,29 @@
+[all]
+bastion ansible_host=${bastion}
+%{ for i, ip in masters ~}
+master${i} ansible_host=${ip}
+%{ endfor ~}
+
+[bastion]
+bastion ansible_host=${bastion}
+
+[kube_control_plane]
+%{ for i, ip in masters ~}
+master${i}
+%{ endfor ~}
+
+[etcd]
+%{ for i, ip in masters ~}
+master${i}
+%{ endfor ~}
+
+[kube_node]
+
+[k8s_cluster:children]
+kube_control_plane
+kube_node
+
+[all:vars]
+ansible_user=azureuser
+ansible_ssh_private_key_file=${ssh_key}
+ansible_ssh_common_args='-o StrictHostKeyChecking=no -o ProxyCommand="ssh -i ${ssh_key} -W %h:%p -o StrictHostKeyChecking=no azureuser@${bastion}"'

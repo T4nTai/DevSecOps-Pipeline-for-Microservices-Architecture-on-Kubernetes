@@ -42,6 +42,11 @@ service:
   type: ClusterIP
   port: 3100
 
+# Use coredns resolver (not kube-dns — Kubespray uses CoreDNS)
+gateway:
+  nginxConfig:
+    resolver: 10.96.0.3
+
 # Promtail — DaemonSet that ships pod logs to Loki
 promtail:
   enabled: false   # Deployed separately via promtail chart

@@ -1,0 +1,4 @@
+resource_group_name  = "devsecops-tfstate-rg"
+storage_account_name = "devsecopsstate"
+container_name       = "tfstate"
+key                  = "apps.tfstate"

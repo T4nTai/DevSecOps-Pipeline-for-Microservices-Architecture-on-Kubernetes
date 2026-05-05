@@ -1,0 +1,178 @@
+
+
+services:
+
+  # --------------- Infrastructure ---------------
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+  # --------------- Backend Services ---------------
+
+  adservice:
+    build:
+      context: ./app/src/adservice
+    ports:
+      - "9555:9555"
+    environment:
+      - PORT=9555
+      - DISABLE_STATS=1
+      - DISABLE_TRACING=1
+      - DISABLE_PROFILER=1
+    restart: unless-stopped
+
+  cartservice:
+    build:
+      context: ./app/src/cartservice/src
+    ports:
+      - "7070:7070"
+    environment:
+      - REDIS_ADDR=redis:6379
+      - PORT=7070
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  checkoutservice:
+    build:
+      context: ./app/src/checkoutservice
+    ports:
+      - "5050:5050"
+    environment:
+      - PORT=5050
+      - PRODUCT_CATALOG_SERVICE_ADDR=productcatalogservice:3550
+      - SHIPPING_SERVICE_ADDR=shippingservice:50051
+      - CART_SERVICE_ADDR=cartservice:7070
+      - CURRENCY_SERVICE_ADDR=currencyservice:7000
+      - EMAIL_SERVICE_ADDR=emailservice:8080
+      - PAYMENT_SERVICE_ADDR=paymentservice:50051
+      - ENABLE_TRACING=0
+      - DISABLE_PROFILER=1
+    depends_on:
+      - productcatalogservice
+      - shippingservice
+      - cartservice
+      - currencyservice
+      - emailservice
+      - paymentservice
+    restart: unless-stopped
+
+  currencyservice:
+    build:
+      context: ./app/src/currencyservice
+    ports:
+      - "7000:7000"
+    environment:
+      - PORT=7000
+      - DISABLE_PROFILER=1
+      - ENABLE_TRACING=0
+    restart: unless-stopped
+
+  emailservice:
+    build:
+      context: ./app/src/emailservice
+    environment:
+      - PORT=8080
+      - DISABLE_PROFILER=1
+      - ENABLE_TRACING=0
+    restart: unless-stopped
+
+  paymentservice:
+    build:
+      context: ./app/src/paymentservice
+    environment:
+      - PORT=50051
+      - DISABLE_PROFILER=1
+      - ENABLE_TRACING=0
+    restart: unless-stopped
+
+  productcatalogservice:
+    build:
+      context: ./app/src/productcatalogservice
+    ports:
+      - "3550:3550"
+    environment:
+      - PORT=3550
+      - ENABLE_TRACING=0
+      - DISABLE_PROFILER=1
+    restart: unless-stopped
+
+  recommendationservice:
+    build:
+      context: ./app/src/recommendationservice
+    environment:
+      - PORT=8080
+      - PRODUCT_CATALOG_SERVICE_ADDR=productcatalogservice:3550
+      - DISABLE_PROFILER=1
+      - ENABLE_TRACING=0
+    depends_on:
+      - productcatalogservice
+    restart: unless-stopped
+
+  shippingservice:
+    build:
+      context: ./app/src/shippingservice
+    environment:
+      - PORT=50051
+      - DISABLE_TRACING=1
+      - DISABLE_PROFILER=1
+      - DISABLE_STATS=1
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./app/src/frontend
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - PRODUCT_CATALOG_SERVICE_ADDR=productcatalogservice:3550
+      - CURRENCY_SERVICE_ADDR=currencyservice:7000
+      - CART_SERVICE_ADDR=cartservice:7070
+      - RECOMMENDATION_SERVICE_ADDR=recommendationservice:8080
+      - CHECKOUT_SERVICE_ADDR=checkoutservice:5050
+      - SHIPPING_SERVICE_ADDR=shippingservice:50051
+      - AD_SERVICE_ADDR=adservice:9555
+      - SHOPPING_ASSISTANT_SERVICE_ADDR=shoppingassistantservice:8080
+      - ENABLE_TRACING=0
+      - DISABLE_PROFILER=1
+    depends_on:
+      - productcatalogservice
+      - currencyservice
+      - cartservice
+      - recommendationservice
+      - checkoutservice
+      - shippingservice
+      - adservice
+    restart: unless-stopped
+
+  loadgenerator:
+    build:
+      context: ./app/src/loadgenerator
+    environment:
+      - FRONTEND_ADDR=frontend:8080
+      - USERS=10
+      - RATE=1
+    depends_on:
+      - frontend
+    profiles:
+      - loadgen
+    restart: unless-stopped
+
+  shoppingassistantservice:
+    build:
+      context: ./app/src/shoppingassistantservice
+    environment:
+      - PROJECT_ID=${PROJECT_ID:-}
+      - REGION=${REGION:-}
+      - ALLOYDB_DATABASE_NAME=${ALLOYDB_DATABASE_NAME:-}
+      - ALLOYDB_TABLE_NAME=${ALLOYDB_TABLE_NAME:-}
+      - ALLOYDB_CLUSTER_NAME=${ALLOYDB_CLUSTER_NAME:-}
+      - ALLOYDB_INSTANCE_NAME=${ALLOYDB_INSTANCE_NAME:-}
+      - ALLOYDB_SECRET_NAME=${ALLOYDB_SECRET_NAME:-}
+    profiles:
+      - gcp
+    restart: unless-stopped

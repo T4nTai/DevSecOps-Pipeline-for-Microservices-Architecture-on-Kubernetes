@@ -1,136 +1,115 @@
 #!/usr/bin/env bash
-# connect.sh — Open SSH tunnels for kubectl, Jenkins, SonarQube, Harbor, ArgoCD, Monitoring
-# Usage: ./connect.sh [stop]
+# connect.sh — SSH tunnel for kubectl access
+#
+# Usage:
+#   ./connect.sh [stop]
+#   ./connect.sh --cloud=aws|azure --cluster=tools|apps [stop]
+#
+# Env vars: CLOUD=aws|azure  CLUSTER=tools|apps  SSH_KEY=path
+#
+# Services (Jenkins, ArgoCD, Grafana) are accessible via HTTPS subdomains directly.
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TERRAFORM_DIR="$SCRIPT_DIR/terraform"
-SSH_KEY="${SSH_KEY:-$HOME/.ssh/id_ed25519}"
-SSH_USER="ubuntu"
-PID_FILE="/tmp/devsecops-tunnels.pid"
 
-# ── Ports ──────────────────────────────────────────────────────────────────────
+# ── Parse flags ───────────────────────────────────────────────────────────────
+ACTION=""
+for arg in "$@"; do
+  case "$arg" in
+    --cloud=*)   CLOUD="${arg#*=}" ;;
+    --cluster=*) CLUSTER="${arg#*=}" ;;
+    stop)        ACTION="stop" ;;
+  esac
+done
+
+export CLOUD="${CLOUD:-aws}"
+export CLUSTER="${CLUSTER:-tools}"
+
+# ── Per-cloud SSH defaults ────────────────────────────────────────────────────
+if [[ "$CLOUD" == "azure" ]]; then
+  SSH_USER="${SSH_USER:-azureuser}"
+  SSH_KEY="${SSH_KEY:-/tmp/ssh/id_rsa}"
+  TF_DIR="$SCRIPT_DIR/terraform/azure/envs/$CLUSTER"
+else
+  SSH_USER="${SSH_USER:-ubuntu}"
+  SSH_KEY="${SSH_KEY:-$HOME/.ssh/id_ed25519}"
+  TF_DIR="$SCRIPT_DIR/terraform/aws/envs/$CLUSTER"
+fi
+
+PID_FILE="/tmp/devsecops-kubectl-${CLOUD}-${CLUSTER}.pid"
+SOCKET_FILE="/tmp/devsecops-ssh-${CLOUD}-${CLUSTER}.sock"
 LOCAL_K8S_PORT=6443
-LOCAL_JENKINS_PORT=8080
-LOCAL_SONAR_PORT=9000
-LOCAL_HARBOR_PORT=8002
-LOCAL_ARGOCD_PORT=8085
-LOCAL_GRAFANA_PORT=3000
-LOCAL_PROMETHEUS_PORT=9090
-LOCAL_ALERTMANAGER_PORT=9093
 
-REMOTE_K8S_PORT=6443
-REMOTE_JENKINS_PORT=30080
-REMOTE_SONAR_PORT=30900
-REMOTE_HARBOR_PORT=30002
-REMOTE_ARGOCD_PORT=30085
-REMOTE_GRAFANA_PORT=30030
-REMOTE_PROMETHEUS_PORT=30090
-REMOTE_ALERTMANAGER_PORT=30093
-
-ALL_PORTS=(
-  $LOCAL_K8S_PORT
-  $LOCAL_JENKINS_PORT
-  $LOCAL_SONAR_PORT
-  $LOCAL_HARBOR_PORT
-  $LOCAL_ARGOCD_PORT
-  $LOCAL_GRAFANA_PORT
-  $LOCAL_PROMETHEUS_PORT
-  $LOCAL_ALERTMANAGER_PORT
-)
-
-# ── Kill any process holding our ports ────────────────────────────────────────
-kill_port_holders() {
-  for port in "${ALL_PORTS[@]}"; do
-    # find PID listening on the port (works on Linux/WSL)
-    local pid
-    pid=$(ss -tlnp "sport = :$port" 2>/dev/null \
-      | grep -oP '(?<=pid=)\d+' | head -1 || true)
-    if [[ -n "$pid" ]]; then
-      echo "  Killing process $pid holding port $port..."
-      kill "$pid" 2>/dev/null || true
-    fi
-  done
-  sleep 1
-}
-
+# ── Helpers ───────────────────────────────────────────────────────────────────
 stop_tunnels() {
-  echo "Stopping tunnels..."
-
-  # Kill via PID file first
+  echo "Stopping kubectl tunnel (cloud=$CLOUD cluster=$CLUSTER)..."
   if [[ -f "$PID_FILE" ]]; then
     PID=$(cat "$PID_FILE")
-    if kill -0 "$PID" 2>/dev/null; then
-      echo "  Killing tunnel process (PID $PID)..."
-      kill "$PID" 2>/dev/null || true
-    fi
+    kill -0 "$PID" 2>/dev/null && kill "$PID" 2>/dev/null || true
     rm -f "$PID_FILE"
   fi
-
-  # Also kill any stray SSH processes tunnelling our ports
   pkill -f "ssh.*${LOCAL_K8S_PORT}.*" 2>/dev/null || true
-
-  # Release any remaining port holders
-  kill_port_holders
-
-  echo "Tunnels stopped."
+  local pid
+  pid=$(ss -tlnp "sport = :${LOCAL_K8S_PORT}" 2>/dev/null | grep -oP '(?<=pid=)\d+' | head -1 || true)
+  [[ -n "$pid" ]] && kill "$pid" 2>/dev/null || true
+  echo "Tunnel stopped."
   exit 0
 }
 
-# ── Handle stop argument ───────────────────────────────────────────────────────
-if [[ "${1:-}" == "stop" ]]; then
-  stop_tunnels
-fi
+[ "$ACTION" = "stop" ] && stop_tunnels
 
-# ── If ports are busy, stop existing tunnels first ────────────────────────────
-PORT_IN_USE=false
-for port in "${ALL_PORTS[@]}"; do
-  if ss -tlnp "sport = :$port" 2>/dev/null | grep -q LISTEN; then
-    PORT_IN_USE=true
-    break
-  fi
-done
-
-if [[ "$PORT_IN_USE" == "true" ]]; then
-  echo "Some ports are already in use. Clearing existing tunnels..."
-  # Kill via PID file
-  if [[ -f "$PID_FILE" ]]; then
-    PID=$(cat "$PID_FILE")
-    kill "$PID" 2>/dev/null || true
-    rm -f "$PID_FILE"
-  fi
-  # Kill any stray SSH tunnel processes
+# ── Clear busy port ───────────────────────────────────────────────────────────
+if ss -tlnp "sport = :${LOCAL_K8S_PORT}" 2>/dev/null | grep -q LISTEN; then
+  echo "Port ${LOCAL_K8S_PORT} in use — clearing existing tunnel..."
+  [[ -f "$PID_FILE" ]] && kill "$(cat "$PID_FILE")" 2>/dev/null || true
+  rm -f "$PID_FILE"
   pkill -f "ssh.*ExitOnForwardFailure" 2>/dev/null || true
-  kill_port_holders
+  pid=$(ss -tlnp "sport = :${LOCAL_K8S_PORT}" 2>/dev/null | grep -oP '(?<=pid=)\d+' | head -1 || true)
+  [[ -n "$pid" ]] && kill "$pid" 2>/dev/null || true
 fi
 
-# ── Read IPs from Terraform output ────────────────────────────────────────────
-echo "Reading Terraform outputs..."
-cd "$TERRAFORM_DIR"
+# ── Read IPs from Terraform outputs ──────────────────────────────────────────
+echo "Reading Terraform outputs (cloud=$CLOUD cluster=$CLUSTER)..."
 
-BASTION_IP=$(terraform output -raw bastion_public_ip 2>/dev/null)
-CONTROL_PLANE_IP=$(terraform output -raw control_plane_private_ip 2>/dev/null)
-WORKER_IP=$(terraform output -json worker_private_ips 2>/dev/null \
-  | python3 -c "import sys,json; print(json.load(sys.stdin)[0])")
+if [ ! -d "$TF_DIR" ]; then
+  echo "ERROR: Terraform dir not found: $TF_DIR"
+  exit 1
+fi
 
-if [[ -z "$BASTION_IP" || -z "$CONTROL_PLANE_IP" || -z "$WORKER_IP" ]]; then
-  echo "ERROR: Could not read Terraform outputs. Run: cd terraform && terraform apply"
+cd "$TF_DIR"
+
+if [[ "$CLOUD" == "azure" ]]; then
+  BASTION_IP=$(terraform output -raw bastion_ip 2>/dev/null)
+  API_ENDPOINT=$(terraform output -json master_private_ips 2>/dev/null \
+    | python3 -c "import sys,json; print(json.load(sys.stdin)[0])")
+else
+  BASTION_IP=$(terraform output -raw bastion_public_ip 2>/dev/null)
+  API_ENDPOINT=$(terraform output -raw control_plane_private_ip 2>/dev/null \
+    || terraform output -raw api_nlb_dns 2>/dev/null)
+fi
+
+if [[ -z "$BASTION_IP" || -z "$API_ENDPOINT" ]]; then
+  echo "ERROR: Could not read Terraform outputs. Run step 01 first."
   exit 1
 fi
 
 echo ""
-echo "  Bastion IP      : $BASTION_IP"
-echo "  Control Plane IP: $CONTROL_PLANE_IP"
-echo "  Worker IP       : $WORKER_IP"
+echo "  Cloud:       $CLOUD"
+echo "  Cluster:     $CLUSTER"
+echo "  Bastion IP:  $BASTION_IP"
+echo "  K8s API:     $API_ENDPOINT:6443"
 echo ""
 
-# ── Open all tunnels ───────────────────────────────────────────────────────────
-echo "Opening SSH tunnels..."
-
-# Use a control socket so we can reliably get and kill the background process
-SOCKET_FILE="/tmp/devsecops-ssh.sock"
+# ── Open kubectl tunnel via bastion ──────────────────────────────────────────
+echo "Opening kubectl tunnel..."
 rm -f "$SOCKET_FILE"
+
+if [[ "$CLOUD" == "azure" ]]; then
+  PROXY_OPTS=(-o "ProxyCommand=ssh -i ${SSH_KEY} -W %h:%p -o StrictHostKeyChecking=no ${SSH_USER}@${BASTION_IP}")
+else
+  PROXY_OPTS=(-J "${SSH_USER}@${BASTION_IP}")
+fi
 
 ssh -i "$SSH_KEY" \
   -o StrictHostKeyChecking=no \
@@ -138,38 +117,44 @@ ssh -i "$SSH_KEY" \
   -o ServerAliveInterval=30 \
   -o ServerAliveCountMax=3 \
   -M -S "$SOCKET_FILE" \
-  -L "${LOCAL_K8S_PORT}:${CONTROL_PLANE_IP}:${REMOTE_K8S_PORT}" \
-  -L "${LOCAL_JENKINS_PORT}:${WORKER_IP}:${REMOTE_JENKINS_PORT}" \
-  -L "${LOCAL_SONAR_PORT}:${WORKER_IP}:${REMOTE_SONAR_PORT}" \
-  -L "${LOCAL_HARBOR_PORT}:${WORKER_IP}:${REMOTE_HARBOR_PORT}" \
-  -L "${LOCAL_ARGOCD_PORT}:${WORKER_IP}:${REMOTE_ARGOCD_PORT}" \
-  -L "${LOCAL_GRAFANA_PORT}:${WORKER_IP}:${REMOTE_GRAFANA_PORT}" \
-  -L "${LOCAL_PROMETHEUS_PORT}:${WORKER_IP}:${REMOTE_PROMETHEUS_PORT}" \
-  -L "${LOCAL_ALERTMANAGER_PORT}:${WORKER_IP}:${REMOTE_ALERTMANAGER_PORT}" \
-  "${SSH_USER}@${BASTION_IP}" \
+  "${PROXY_OPTS[@]}" \
+  -L "${LOCAL_K8S_PORT}:${API_ENDPOINT}:6443" \
+  "${SSH_USER}@${API_ENDPOINT}" \
   -N -f
 
-# Find the real background SSH PID via the control socket
-SSH_PID=$(ssh -S "$SOCKET_FILE" -O check "${SSH_USER}@${BASTION_IP}" 2>&1 \
-  | grep -oP '(?<=pid=)\d+' || true)
-
-# Fallback: find via ss
-if [[ -z "$SSH_PID" ]]; then
-  SSH_PID=$(ss -tlnp "sport = :${LOCAL_K8S_PORT}" 2>/dev/null \
-    | grep -oP '(?<=pid=)\d+' | head -1 || true)
-fi
-
+SSH_PID=$(ss -tlnp "sport = :${LOCAL_K8S_PORT}" 2>/dev/null \
+  | grep -oP '(?<=pid=)\d+' | head -1 || true)
 echo "$SSH_PID" > "$PID_FILE"
 
-echo "Tunnels open (PID ${SSH_PID:-unknown})"
+# ── Patch kubeconfig ──────────────────────────────────────────────────────────
+KUBECONFIG_FILE="${KUBECONFIG:-$HOME/.kube/config}"
+KUBECONFIG_LOCAL="${SCRIPT_DIR}/.kubeconfig"
+
+for kc in "$KUBECONFIG_LOCAL" "$KUBECONFIG_FILE"; do
+  [ -f "$kc" ] || continue
+  CURRENT_SERVER=$(kubectl --kubeconfig "$kc" config view --minify \
+    -o jsonpath='{.clusters[0].cluster.server}' 2>/dev/null || true)
+  if [[ "$CURRENT_SERVER" != "https://127.0.0.1:${LOCAL_K8S_PORT}" ]]; then
+    CLUSTER_NAME_K8S=$(kubectl --kubeconfig "$kc" config view --minify \
+      -o jsonpath='{.clusters[0].name}' 2>/dev/null || true)
+    kubectl config set-cluster "${CLUSTER_NAME_K8S}" \
+      --server="https://127.0.0.1:${LOCAL_K8S_PORT}" \
+      --kubeconfig "$kc" &>/dev/null
+    kubectl config set-cluster "${CLUSTER_NAME_K8S}" \
+      --insecure-skip-tls-verify=true \
+      --kubeconfig "$kc" &>/dev/null
+    echo "  Kubeconfig patched: $kc → https://127.0.0.1:${LOCAL_K8S_PORT}"
+  fi
+done
+
 echo ""
-echo "  kubectl             -> ready  (127.0.0.1:${LOCAL_K8S_PORT})"
-echo "  Jenkins             -> http://localhost:${LOCAL_JENKINS_PORT}"
-echo "  SonarQube           -> http://localhost:${LOCAL_SONAR_PORT}"
-echo "  Harbor              -> http://localhost:${LOCAL_HARBOR_PORT}"
-echo "  ArgoCD              -> http://localhost:${LOCAL_ARGOCD_PORT}"
-echo "  Grafana             -> http://localhost:${LOCAL_GRAFANA_PORT}"
-echo "  Prometheus          -> http://localhost:${LOCAL_PROMETHEUS_PORT}"
-echo "  Alertmanager        -> http://localhost:${LOCAL_ALERTMANAGER_PORT}"
+echo "kubectl tunnel open (PID ${SSH_PID:-unknown})"
 echo ""
-echo "Run './connect.sh stop' to close tunnels."
+echo "  kubectl  → ready  (127.0.0.1:${LOCAL_K8S_PORT})"
+echo ""
+echo "  Services (accessible directly via browser):"
+echo "    Jenkins    https://jenkins.${CLUSTER}.votantai.me"
+echo "    ArgoCD     https://argocd.${CLUSTER}.votantai.me"
+echo "    Grafana    https://grafana.${CLUSTER}.votantai.me"
+echo ""
+echo "Run './connect.sh --cloud=$CLOUD --cluster=$CLUSTER stop' to close tunnel."

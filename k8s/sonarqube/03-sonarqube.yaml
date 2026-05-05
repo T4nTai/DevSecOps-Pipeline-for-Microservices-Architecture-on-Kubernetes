@@ -40,7 +40,10 @@ spec:
             - name: SONAR_JDBC_USERNAME
               value: sonar
             - name: SONAR_JDBC_PASSWORD
-              value: sonar
+              valueFrom:
+                secretKeyRef:
+                  name: sonarqube-db-secret
+                  key: password
             - name: SONAR_ES_BOOTSTRAP_CHECKS_DISABLE
               value: "true"
           ports:
@@ -59,15 +62,15 @@ spec:
             httpGet:
               path: /api/system/status
               port: 9000
-            initialDelaySeconds: 120
-            periodSeconds: 20
-            failureThreshold: 10
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            failureThreshold: 15
           livenessProbe:
             httpGet:
               path: /api/system/status
               port: 9000
-            initialDelaySeconds: 180
-            periodSeconds: 30
+            initialDelaySeconds: 120
+            periodSeconds: 20
             failureThreshold: 5
 
       volumes:
@@ -81,10 +84,9 @@ metadata:
   name: sonarqube
   namespace: sonarqube
 spec:
-  type: NodePort
+  type: ClusterIP
   selector:
     app: sonarqube
   ports:
     - port: 9000
       targetPort: 9000
-      nodePort: 30900        # Access: http://<worker-public-ip>:30900

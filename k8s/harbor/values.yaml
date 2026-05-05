@@ -1,21 +1,21 @@
 expose:
-  type: nodePort
-  nodePort:
-    ports:
-      http:
-        nodePort: 30002      # Harbor UI: http://<worker-ip>:30002
-      notary:
-        nodePort: 30004
-
+  type: ingress
+  ingress:
+    hosts:
+      core: harbor.tools.votantai.me
+    annotations:
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/proxy-body-size: "0"
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+      nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+    className: nginx
   tls:
-    enabled: false           # No TLS for dev — simplifies Docker daemon config
+    enabled: true
+    secret:
+      secretName: tools-wildcard-tls
 
-# externalURL is set dynamically by install-tools.sh using the worker's private IP
-# so Jenkins pods and K8s nodes (inside the VPC) can reach Harbor
-# Local browser access goes via SSH tunnel: http://localhost:8002
-externalURL: http://WORKER_PRIVATE_IP:30002
+externalURL: https://harbor.tools.votantai.me
 
-# Persistence using ebs-sc-provisioner
 persistence:
   enabled: true
   resourcePolicy: "keep"
@@ -37,10 +37,8 @@ persistence:
       storageClass: "ebs-sc"
       size: 5Gi
 
-# Admin password
-harborAdminPassword: "Harbor12345"
+harborAdminPassword: "HARBOR_ADMIN_PASSWORD_PLACEHOLDER"
 
-# Reduce resource usage for B2s node
 core:
   resources:
     requests:
@@ -53,7 +51,7 @@ core:
 jobservice:
   replicas: 1
   updateStrategy:
-    type: Recreate   # stop old pod first before starting new — avoids EBS multi-attach
+    type: Recreate
   resources:
     requests:
       cpu: 100m
@@ -65,7 +63,7 @@ jobservice:
 registry:
   replicas: 1
   updateStrategy:
-    type: Recreate   # stop old pod first before starting new — avoids EBS multi-attach
+    type: Recreate
   resources:
     requests:
       cpu: 100m
@@ -75,7 +73,7 @@ registry:
       memory: 256Mi
 
 trivy:
-  enabled: true              # Built-in Trivy scanner in Harbor
+  enabled: true
   resources:
     requests:
       cpu: 100m
@@ -85,7 +83,7 @@ trivy:
       memory: 512Mi
 
 notary:
-  enabled: false             # Disable notary to save memory
+  enabled: false
 
 database:
   internal:

@@ -1,14 +1,11 @@
 global:
-  domain: ""  # Not using ingress — NodePort access
+  domain: argocd.tools.votantai.me
 
-# Expose ArgoCD server via NodePort
 server:
   service:
-    type: NodePort
-    nodePortHttp: 30085
-    nodePortHttps: 30086
+    type: ClusterIP
 
-  # Disable TLS on the server itself (terminate at tunnel/LB)
+  # TLS terminated at NGINX ingress
   extraArgs:
     - --insecure
 

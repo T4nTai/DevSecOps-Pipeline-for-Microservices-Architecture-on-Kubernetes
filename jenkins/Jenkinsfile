@@ -277,9 +277,9 @@ spec:
                 ) {
                     container('yq') {
                         sh """
-                            echo "==> Updating image tag in k8s manifest..."
+                            echo "==> Updating image tag in rollout manifest..."
                             yq e '.spec.template.spec.containers[0].image = "${FULL_IMAGE}"' \
-                              -i k8s/apps/frontend/deployment.yaml
+                              -i k8s/apps/frontend/rollout.yaml
                         """
                     }
                     container('manifest-updater') {
@@ -288,8 +288,8 @@ spec:
                             git config user.email "jenkins@ci.local"
                             git config user.name "Jenkins"
 
-                            git add k8s/apps/frontend/deployment.yaml
-                            git commit -m "ci: update frontend image to ${IMAGE_TAG}"
+                            git add k8s/apps/frontend/rollout.yaml
+                            git commit -m "ci: update frontend rollout image to ${IMAGE_TAG}"
                             git push https://\${GIT_USER}:\${GIT_TOKEN}@\$(git remote get-url origin | sed 's|https://||') HEAD:main
                         """
                     }

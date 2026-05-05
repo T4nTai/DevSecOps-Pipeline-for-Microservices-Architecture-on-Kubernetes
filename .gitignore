@@ -15,7 +15,7 @@
 !app/
 app/*
 !app/src/
-app/src/**
+!app/src/**
 
 # Terraform — never commit state or local overrides
 **/.terraform/
@@ -27,6 +27,12 @@ app/src/**
 secrets.tfvars
 *.tfvars.json
 
+# Terraform — runtime-generated and environment-specific (contain real IPs, AWS account IDs)
+terraform/inventory.ini
+terraform/**/terraform.tfvars
+terraform/**/*-tools.tfvars
+terraform/**/*-apps.tfvars
+
 # Kubespray
 kubespray/.venv/
 kubespray/kubespray-src/
@@ -36,3 +42,11 @@ kubespray/kubespray-src/
 .env
 .env.secret
 .kubeconfig
+
+# App build artifacts
+app/src/**/.gradle/
+app/src/**/bin/
+app/src/**/build/
+app/src/**/node_modules/
+app/src/**/__pycache__/
+app/src/**/*.class
