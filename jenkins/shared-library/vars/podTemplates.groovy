@@ -58,11 +58,11 @@ spec:
       command: ["sleep", "infinity"]
       resources:
         requests:
-          cpu: "25m"
-          memory: "128Mi"
+          cpu: "50m"
+          memory: "512Mi"
         limits:
-          cpu: "200m"
-          memory: "256Mi"
+          cpu: "300m"
+          memory: "1Gi"
 
     - name: kaniko
       image: gcr.io/kaniko-project/executor:debug

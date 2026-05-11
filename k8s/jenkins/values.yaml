@@ -28,6 +28,7 @@ controller:
   installPlugins:
     - kubernetes:latest
     - workflow-aggregator:latest
+    - workflow-cps-global-lib:latest
     - git:latest
     - configuration-as-code:latest
     - blueocean:latest
@@ -57,6 +58,23 @@ controller:
               - name: "sonarqube"
                 serverUrl: "https://sonarqube.tools.votantai.me"
                 credentialsId: "sonarqube-token"
+      shared-library-config: |
+        unclassified:
+          globalLibraries:
+            libraries:
+              - name: "devsecops-shared-lib"
+                defaultVersion: "main"
+                implicit: false
+                trusted: true
+                retriever:
+                  modernSCM:
+                    scm:
+                      git:
+                        remote: "https://github.com/T4nTai/DevSecOps-Pipeline-for-Microservices-Architecture-on-Kubernetes.git"
+                        credentialsId: ""
+                        traits:
+                          - gitBranchDiscovery
+                    libraryPath: "jenkins/shared-library"
 
 persistence:
   enabled: true
