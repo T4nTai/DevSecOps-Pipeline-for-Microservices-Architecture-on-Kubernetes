@@ -15,12 +15,12 @@ def call(Map config) {
         }
 
         environment {
-            IMAGE_NAME     = imageName
+            IMAGE_NAME     = "${imageName}"
             IMAGE_TAG      = "${BUILD_NUMBER}"
-            APP_DIR        = appDir
+            APP_DIR        = "${appDir}"
             HARBOR_PROJECT = 'library'
-            VAULT_ADDR    = 'http://vault.vault.svc.cluster.local:8200'
-            SONAR_HOST    = 'http://sonarqube.sonarqube.svc.cluster.local:9000'
+            VAULT_ADDR     = 'http://vault.vault.svc.cluster.local:8200'
+            SONAR_HOST     = 'http://sonarqube.sonarqube.svc.cluster.local:9000'
         }
 
         stages {
