@@ -3,13 +3,14 @@ def call(Map config) {
     def imageName    = config.imageName
     def language     = config.language     ?: 'golang'
     def sonarKey     = config.sonarKey     ?: imageName
+    def podYaml = podTemplates.getTemplate(language)
     def manifestFile = config.manifestFile ?: "k8s/apps/${imageName}/rollout.yaml"
 
     pipeline {
         agent {
             kubernetes {
                 defaultContainer 'builder'
-                yaml podTemplates.getTemplate(language)
+                yaml podYaml
             }
         }
 
@@ -27,7 +28,6 @@ def call(Map config) {
             stage('Load Secrets') {
                 steps {
                     script {
-                        // Load required secrets — pipeline fails if any of these are missing
                         withVault(
                             configuration: [
                                 vaultUrl:          env.VAULT_ADDR,
@@ -47,7 +47,6 @@ def call(Map config) {
                                 ]]
                             ]
                         ) {
-                            // Promote to pipeline scope — withVault only injects within the closure
                             env.GIT_USER        = env.GIT_USER
                             env.GIT_TOKEN       = env.GIT_TOKEN
                             env.HARBOR_REGISTRY = env.HARBOR_REGISTRY

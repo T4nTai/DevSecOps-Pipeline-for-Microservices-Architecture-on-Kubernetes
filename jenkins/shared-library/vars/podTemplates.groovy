@@ -1,5 +1,3 @@
-// vars/podTemplates.groovy — Kubernetes pod templates per language
-
 def builderImage(String language) {
     def images = [
         golang: 'golang:1.23-alpine',
