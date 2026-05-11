@@ -1,6 +1,6 @@
 def builderImage(String language) {
     def images = [
-        golang: 'golang:1.23-alpine',
+        golang: 'golang:1.26-alpine',
         java:   'gradle:8-jdk21-alpine',
         nodejs: 'node:20-alpine',
         python: 'python:3.12-slim',
