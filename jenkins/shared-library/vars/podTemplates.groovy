@@ -78,6 +78,8 @@ spec:
       volumeMounts:
         - name: kaniko-secret
           mountPath: /kaniko/.docker
+        - name: image-workspace
+          mountPath: /workspace
 
     - name: trivy
       image: aquasec/trivy:0.61.0
@@ -93,6 +95,8 @@ spec:
       volumeMounts:
         - name: kaniko-secret
           mountPath: /root/.docker
+        - name: image-workspace
+          mountPath: /workspace
 
     - name: yq
       image: mikefarah/yq:4.44.3
@@ -125,5 +129,7 @@ spec:
         items:
           - key: .dockerconfigjson
             path: config.json
+    - name: image-workspace
+      emptyDir: {}
 """
 }
