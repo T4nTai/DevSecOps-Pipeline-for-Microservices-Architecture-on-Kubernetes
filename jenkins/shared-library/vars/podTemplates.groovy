@@ -98,6 +98,23 @@ spec:
         - name: image-workspace
           mountPath: /workspace
 
+    - name: crane
+      image: gcr.io/go-containerregistry/crane:latest
+      imagePullPolicy: IfNotPresent
+      command: ["sleep", "infinity"]
+      resources:
+        requests:
+          cpu: "50m"
+          memory: "64Mi"
+        limits:
+          cpu: "200m"
+          memory: "256Mi"
+      volumeMounts:
+        - name: kaniko-secret
+          mountPath: /root/.docker
+        - name: image-workspace
+          mountPath: /workspace
+
     - name: yq
       image: mikefarah/yq:4.44.3
       imagePullPolicy: IfNotPresent

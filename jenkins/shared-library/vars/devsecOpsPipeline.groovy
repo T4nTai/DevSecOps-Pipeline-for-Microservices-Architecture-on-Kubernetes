@@ -141,7 +141,7 @@ def call(Map config) {
 
             stage('Push Image') {
                 steps {
-                    container('kaniko') {
+                    container('crane') {
                         sh """
                             crane push /workspace/image.tar \${FULL_IMAGE} \
                               --insecure
