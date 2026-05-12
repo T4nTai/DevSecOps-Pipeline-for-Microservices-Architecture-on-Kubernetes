@@ -152,14 +152,6 @@ def call(Map config) {
 
             stage('Update Manifest') {
                 steps {
-                    container('yq') {
-                        sh """
-                            echo "Updating image to: \${FULL_IMAGE}"
-                            yq e '.spec.template.spec.containers[0].image = "\${FULL_IMAGE}"' \
-                              -i ${manifestFile}
-                            cat ${manifestFile} | grep image:
-                        """
-                    }
                     container('manifest-updater') {
                         sh """
                             git config --global --add safe.directory "\${WORKSPACE}"
@@ -167,6 +159,18 @@ def call(Map config) {
                             git config user.name "Jenkins"
                             git fetch origin main
                             git checkout main
+                        """
+                    }
+                    container('yq') {
+                        sh """
+                            echo "Updating image to: \${FULL_IMAGE}"
+                            yq e '.spec.template.spec.containers[0].image = "\${FULL_IMAGE}"' \
+                              -i ${manifestFile}
+                            grep image: ${manifestFile}
+                        """
+                    }
+                    container('manifest-updater') {
+                        sh """
                             git add ${manifestFile}
                             git diff --cached --quiet && echo "No changes to commit" && exit 0
                             git commit -m "ci: update ${imageName} image to \${IMAGE_TAG}"
