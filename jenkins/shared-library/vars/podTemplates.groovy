@@ -27,6 +27,10 @@ apiVersion: v1
 kind: Pod
 spec:
   serviceAccountName: jenkins
+  hostAliases:
+    - ip: "10.105.193.96"
+      hostnames:
+        - "harbor.tools.votantai.me"
   containers:
     - name: builder
       image: ${builderImage(language)}
