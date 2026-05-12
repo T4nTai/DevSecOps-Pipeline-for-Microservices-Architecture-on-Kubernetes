@@ -17,7 +17,7 @@ spec:
         - name: harbor-credentials
       containers:
         - name: frontend
-          image: ${FULL_IMAGE}
+          image: harbor.tools.votantai.me/library/frontend:latest
           ports:
             - containerPort: 8080
           env:
