@@ -1,0 +1,7 @@
+@Library('devsecops-shared-lib@main') _
+
+devsecOpsPipeline(
+    appDir:    'app/src/emailservice',
+    imageName: 'emailservice',
+    language:  'python'
+)

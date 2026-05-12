@@ -62,17 +62,35 @@ def call(Map config) {
                 steps { checkout scm }
             }
 
-            stage('Test & IaC Scan') {
-                parallel {
-                    stage('Unit Tests') {
-                        steps {
-                            container('builder') {
-                                dir(appDir) {
-                                    script { runTests(language) }
-                                }
-                            }
+            stage('Build Image') {
+                steps {
+                    container('kaniko') {
+                        sh """
+                            /kaniko/executor \
+                              --context="\${WORKSPACE}/${appDir}" \
+                              --dockerfile="\${WORKSPACE}/${appDir}/Dockerfile" \
+                              --no-push \
+                              --tar-path /workspace/image.tar \
+                              --insecure \
+                              --skip-tls-verify \
+                              --cache=false
+                        """
+                    }
+                }
+            }
+
+            stage('Unit Tests') {
+                steps {
+                    container('builder') {
+                        dir(appDir) {
+                            script { runTests(language) }
                         }
                     }
+                }
+            }
+
+            stage('Security Scan') {
+                parallel {
                     stage('Checkov — IaC Scan') {
                         steps {
                             container('checkov') {
@@ -80,61 +98,53 @@ def call(Map config) {
                             }
                         }
                     }
-                }
-            }
-
-            stage('SonarQube Analysis') {
-                steps {
-                    container('sonar-scanner') {
-                        withSonarQubeEnv('sonarqube') {
-                            script {
-                                def extraArgs = (language == 'golang')
-                                    ? "-Dsonar.go.coverage.reportPaths=${appDir}/coverage.out"
-                                    : ''
+                    stage('SonarQube Analysis') {
+                        steps {
+                            container('sonar-scanner') {
+                                withSonarQubeEnv('sonarqube') {
+                                    script {
+                                        def extraArgs = (language == 'golang')
+                                            ? "-Dsonar.go.coverage.reportPaths=${appDir}/coverage.out"
+                                            : ''
+                                        sh """
+                                            sonar-scanner \
+                                              -Dsonar.projectKey=${sonarKey} \
+                                              -Dsonar.sources=${appDir} \
+                                              -Dsonar.token=\${SONAR_TOKEN} \
+                                              -Dsonar.host.url=\${SONAR_HOST} \
+                                              -Dsonar.scm.disabled=true \
+                                              ${extraArgs}
+                                        """
+                                    }
+                                }
+                                timeout(time: 15, unit: 'MINUTES') {
+                                    waitForQualityGate abortPipeline: true
+                                }
+                            }
+                        }
+                    }
+                    stage('Trivy — Image Scan') {
+                        steps {
+                            container('trivy') {
                                 sh """
-                                    sonar-scanner \
-                                      -Dsonar.projectKey=${sonarKey} \
-                                      -Dsonar.sources=${appDir} \
-                                      -Dsonar.token=\${SONAR_TOKEN} \
-                                      -Dsonar.host.url=\${SONAR_HOST} \
-                                      -Dsonar.scm.disabled=true \
-                                      ${extraArgs}
+                                    trivy image \
+                                      --exit-code 0 \
+                                      --severity HIGH,CRITICAL \
+                                      --no-progress \
+                                      --input /workspace/image.tar
                                 """
                             }
                         }
-                        timeout(time: 15, unit: 'MINUTES') {
-                            waitForQualityGate abortPipeline: true
-                        }
                     }
                 }
             }
 
-            stage('Build & Push Image') {
+            stage('Push Image') {
                 steps {
                     container('kaniko') {
                         sh """
-                            /kaniko/executor \
-                              --context="\${WORKSPACE}/${appDir}" \
-                              --dockerfile="\${WORKSPACE}/${appDir}/Dockerfile" \
-                              --destination="\${FULL_IMAGE}" \
-                              --insecure \
-                              --skip-tls-verify \
-                              --cache=true
-                        """
-                    }
-                }
-            }
-
-            stage('Trivy — Image Scan') {
-                steps {
-                    container('trivy') {
-                        sh """
-                            trivy image \
-                              --exit-code 0 \
-                              --severity HIGH,CRITICAL \
-                              --no-progress \
-                              --insecure \
-                              \${FULL_IMAGE}
+                            crane push /workspace/image.tar \${FULL_IMAGE} \
+                              --insecure
                         """
                     }
                 }
