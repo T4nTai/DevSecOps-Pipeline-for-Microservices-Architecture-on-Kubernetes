@@ -99,7 +99,7 @@ spec:
           mountPath: /workspace
 
     - name: crane
-      image: gcr.io/go-containerregistry/crane:latest
+      image: gcr.io/go-containerregistry/crane:debug
       imagePullPolicy: IfNotPresent
       command: ["sleep", "infinity"]
       resources:
