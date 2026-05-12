@@ -154,8 +154,10 @@ def call(Map config) {
                 steps {
                     container('yq') {
                         sh """
+                            echo "Updating image to: \${FULL_IMAGE}"
                             yq e '.spec.template.spec.containers[0].image = "\${FULL_IMAGE}"' \
                               -i ${manifestFile}
+                            cat ${manifestFile} | grep image:
                         """
                     }
                     container('manifest-updater') {
@@ -163,7 +165,10 @@ def call(Map config) {
                             git config --global --add safe.directory "\${WORKSPACE}"
                             git config user.email "jenkins@ci.local"
                             git config user.name "Jenkins"
+                            git fetch origin main
+                            git checkout main
                             git add ${manifestFile}
+                            git diff --cached --quiet && echo "No changes to commit" && exit 0
                             git commit -m "ci: update ${imageName} image to \${IMAGE_TAG}"
                             git push https://\${GIT_USER}:\${GIT_TOKEN}@\$(git remote get-url origin | sed 's|https://||') HEAD:main
                         """
