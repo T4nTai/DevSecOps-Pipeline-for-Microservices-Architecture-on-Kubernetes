@@ -10,7 +10,11 @@
 # Source directories
 !scripts/
 !k8s/
-!terraform/
+!infra/
+!platform/
+!tools/
+!apps/
+!docs/
 !jenkins/
 !app/
 app/*
@@ -28,14 +32,16 @@ secrets.tfvars
 *.tfvars.json
 
 # Terraform — runtime-generated and environment-specific (contain real IPs, AWS account IDs)
-terraform/inventory.ini
-terraform/**/terraform.tfvars
-terraform/**/*-tools.tfvars
-terraform/**/*-apps.tfvars
+infra/inventory.ini
+infra/**/terraform.tfvars
+infra/**/*-tools.tfvars
+infra/**/*-apps.tfvars
 
 # Kubespray
 kubespray/.venv/
 kubespray/kubespray-src/
+platform/kubespray/.venv/
+platform/kubespray/kubespray-src/
 
 # Runtime state — never commit
 .deploy-state.env

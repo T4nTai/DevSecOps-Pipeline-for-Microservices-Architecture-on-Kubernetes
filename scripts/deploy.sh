@@ -1,32 +1,10 @@
-#!/usr/bin/env bash
-# deploy.sh — Unified DevSecOps deployment pipeline
-#
-# Usage:
-#   bash scripts/deploy.sh --cloud=aws   [--cluster=tools|apps] [--start-from=01]
-#   bash scripts/deploy.sh --cloud=azure [--cluster=tools|apps] [--start-from=01]
-#
-# Steps:
-#   01 — Terraform apply + state file
-#   02 — Kubespray (provision Kubernetes)
-#   03 — DNS fix (kube-proxy, CoreDNS, nodelocaldns)
-#   04 — Cluster Autoscaler + metrics-server
-#   05 — Prometheus + Grafana
-#   06 — NGINX Ingress + Sorry Page
-#   07 — ArgoCD
-#   08 — Jenkins
-#   09 — KEDA + HTTP Add-on
-#   10 — cert-manager + TLS (wildcard cert for *.tools.votantai.me)
-#   11 — SonarQube (sonarqube.tools.votantai.me)
-#   12 — Harbor (harbor.tools.votantai.me)
-#   13 — Vault (vault.tools.votantai.me)
-#
-# Environment variables (alternative to flags):
-#   CLOUD=aws|azure   CLUSTER=tools|apps   START_FROM=01
-
+#!/bin/bash
+#   bash scripts/deploy.sh --cloud=aws   [--start-from=01]
+#   bash scripts/deploy.sh --cloud=azure [--start-from=01]
 set -euo pipefail
 
 BASE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-STEPS_DIR="$BASE_DIR/scripts/steps"
+STEPS_DIR="$BASE_DIR/scripts/lib"
 ENV_FILE="$BASE_DIR/.env"
 SECRET_FILE="$BASE_DIR/.env.secret"
 
@@ -46,17 +24,13 @@ for arg in "$@"; do
 done
 
 export CLOUD="${CLOUD:-aws}"
-export CLUSTER="${CLUSTER:-tools}"
+export CLUSTER="tools"
 START_FROM="${START_FROM:-01}"
 
 # ── Validate ──────────────────────────────────────────────────────────────────
 case "$CLOUD" in
   aws|azure) ;;
   *) echo "[ERROR] --cloud must be 'aws' or 'azure'"; exit 1 ;;
-esac
-case "$CLUSTER" in
-  tools|apps) ;;
-  *) echo "[ERROR] --cluster must be 'tools' or 'apps'"; exit 1 ;;
 esac
 
 # ── Source helpers ────────────────────────────────────────────────────────────
@@ -78,13 +52,15 @@ if [[ "$CLOUD" == "azure" ]]; then
   export LOCATION="${LOCATION:-koreacentral}"
   export RESOURCE_GROUP="${RESOURCE_GROUP:-${PROJECT_NAME}-${CLUSTER}-rg}"
   export VAULT_NAME="${VAULT_NAME:-${PROJECT_NAME}-${CLUSTER}-kv}"
-  export ENV_DIR="${ENV_DIR:-${BASE_DIR}/terraform/azure/envs/${CLUSTER}}"
+  export ENV_DIR="${ENV_DIR:-${BASE_DIR}/infra/azure/envs/${CLUSTER}}"
   export ADMIN_USER="${ADMIN_USER:-azureuser}"
   export SSH_KEY="${SSH_KEY:-/tmp/ssh/id_rsa}"
   export KUBESPRAY_VERSION="${KUBESPRAY_VERSION:-v2.26.0}"
 else
   export AWS_REGION="${AWS_REGION:-ap-southeast-1}"
-  export ENV_DIR="${ENV_DIR:-${BASE_DIR}/terraform/aws/envs/${CLUSTER}}"
+  export DOMAIN="${DOMAIN:-tools.votantai.me}"
+  export ACME_EMAIL="${ACME_EMAIL:-}"
+  export ENV_DIR="${ENV_DIR:-${BASE_DIR}/infra/aws/envs/${CLUSTER}}"
   export ADMIN_USER="${ADMIN_USER:-ubuntu}"
   export SSH_KEY="${SSH_KEY:-$HOME/.ssh/id_ed25519}"
   export CLUSTER_NAME="${CLUSTER_NAME:-${PROJECT_NAME}-${CLUSTER}}"
@@ -130,11 +106,11 @@ STEPS=(
   "06-ingress.sh"
   "07-argocd.sh"
   "08-jenkins.sh"
-  "09-keda.sh"
-  "10-cert-manager.sh"
-  "11-sonarqube.sh"
-  "12-harbor.sh"
-  "13-vault.sh"
+  "09-cert-manager.sh"
+  "10-sonarqube.sh"
+  "11-harbor.sh"
+  "12-vault.sh"
+  "13-argo-rollouts.sh"
 )
 
 # ── Header ────────────────────────────────────────────────────────────────────
@@ -142,9 +118,8 @@ echo ""
 echo "══════════════════════════════════════════"
 echo "  DEVSECOPS DEPLOYMENT PIPELINE"
 echo "  Cloud:      $CLOUD"
-echo "  Cluster:    $CLUSTER"
 echo "  Start from: step $START_FROM"
-echo "  Vault/SSM:  ${VAULT_NAME:-${CLUSTER_NAME:-$CLUSTER}}"
+echo "  Vault/SSM:  ${VAULT_NAME:-${CLUSTER_NAME:-devsecops}}"
 echo "  SSH key:    $SSH_KEY"
 echo "══════════════════════════════════════════"
 
@@ -166,6 +141,24 @@ for STEP in "${STEPS[@]}"; do
 
   # Reload state after each step so next step sees updated vars
   [ -f "$STATE_FILE" ] && source "$STATE_FILE" || true
+
+  # After kubespray, label apps workers
+  if [[ "$STEP" == "02-kubespray.sh" ]]; then
+    log_info "Labeling apps worker nodes..."
+    APPS_WORKER_IPS=$(cd "${BASE_DIR}/infra/aws/envs/tools" && \
+      terraform output -json apps_worker_private_ips 2>/dev/null \
+      | tr -d '[]" ' | tr ',' '\n' || echo "")
+    for IP in $APPS_WORKER_IPS; do
+      [[ -z "$IP" ]] && continue
+      NODE=$(kubectl get nodes -o wide --no-headers 2>/dev/null \
+        | awk -v ip="$IP" '$6==ip {print $1}')
+      if [ -n "$NODE" ]; then
+        kubectl label node "$NODE" node-role=apps --overwrite
+        kubectl label node "$NODE" node-role.kubernetes.io/apps="" --overwrite
+        log_ok "Labeled $NODE as apps worker"
+      fi
+    done
+  fi
 done
 
 echo ""

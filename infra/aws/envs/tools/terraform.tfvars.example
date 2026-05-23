@@ -1,0 +1,46 @@
+# Copy this file to terraform.tfvars and fill in the values.
+# cp terraform.tfvars.example terraform.tfvars
+
+# ── Required ──────────────────────────────────────────────────────────────────
+
+# Your IP/CIDR for bastion SSH. Run: curl -s ifconfig.me/ip
+# Do NOT use 0.0.0.0/0 in production.
+allowed_ssh_cidr = "YOUR_IP/32"
+
+# Domain name for tools cluster (must be delegated to Route53 NS records)
+domain_name = "tools.example.com"
+
+# KMS key ARN for Vault auto-unseal (create via AWS Console or CLI)
+# aws kms create-key --description "vault-unseal"
+# aws kms create-alias --alias-name alias/vault-unseal --target-key-id <key-id>
+vault_kms_key_arn = "arn:aws:kms:ap-southeast-1:123456789012:key/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+
+# SSH public key path
+public_key_path = "~/.ssh/id_ed25519.pub"
+
+# ── Cluster sizing (defaults are fine for dev/staging) ────────────────────────
+
+aws_region   = "ap-southeast-1"
+cluster_name = "devsecops-tools"
+
+# Control plane
+control_plane_instance_type   = "t3.medium"
+control_plane_count           = 1
+# For HA etcd, set secondary_control_plane_count = 2 (total = 3, must be odd)
+secondary_control_plane_count = 0
+
+# Stateful workers: Vault, Harbor, cert-manager
+worker_instance_type = "t3.large"
+worker_count         = 1
+
+# Apps workers: microservices (leave empty to reuse worker_instance_type)
+# apps_worker_instance_type = "t3.xlarge"
+apps_worker_count = 1
+
+# Spot workers: Jenkins agents, SonarQube (0 = disabled)
+spot_min = 0
+spot_max = 2
+
+# ── Multi-AZ (optional) ───────────────────────────────────────────────────────
+# Uncomment to enable a second private subnet in AZ-b for HA
+# private_subnet_cidr_b = "10.0.21.0/24"
