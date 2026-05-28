@@ -1,0 +1,27 @@
+# Argo Rollouts base values — plain YAML, no template syntax
+# Dashboard host injected via overlay set
+controller:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+dashboard:
+  enabled: true
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    hosts: []      # set via overlay: [rollouts.DOMAIN]
+    paths:
+      - /
+    pathType: Prefix

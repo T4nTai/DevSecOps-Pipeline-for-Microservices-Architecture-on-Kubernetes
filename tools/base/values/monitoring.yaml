@@ -1,0 +1,83 @@
+# kube-prometheus-stack base values — plain YAML, no template syntax
+# Grafana domain + password injected via overlay set directives
+grafana:
+  enabled: true
+  adminPassword: ""   # set via: --set grafana.adminPassword=...
+
+  service:
+    type: ClusterIP
+
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    annotations:
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    hosts: []           # set via overlay: [grafana.DOMAIN]
+    path: /
+    pathType: Prefix
+    tls: []             # set via overlay: [{hosts: [grafana.DOMAIN], secretName: tools-wildcard-tls}]
+
+  grafana.ini:
+    server:
+      root_url: ""      # set via overlay: https://grafana.DOMAIN
+      serve_from_sub_path: false
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 300m
+      memory: 512Mi
+
+  additionalDataSources:
+    - name: Loki
+      type: loki
+      url: http://loki.monitoring.svc.cluster.local:3100
+      access: proxy
+      isDefault: false
+
+prometheus:
+  service:
+    type: ClusterIP
+
+  prometheusSpec:
+    scrapeInterval: "30s"
+    evaluationInterval: "30s"
+    retention: 7d
+    retentionSize: "8GB"
+
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: ""   # set via overlay: values/storage.yaml
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 10Gi
+
+alertmanager:
+  service:
+    type: ClusterIP
+  alertmanagerSpec:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+
+nodeExporter:
+  enabled: true
+
+kubeStateMetrics:
+  enabled: true

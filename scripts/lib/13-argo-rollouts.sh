@@ -21,16 +21,12 @@ else
   helm repo add argo https://argoproj.github.io/argo-helm 2>/dev/null || true
   helm repo update 2>/dev/null || true
 
-  sed -e "s|DOMAIN_PLACEHOLDER|${DOMAIN}|g" \
-    "$BASE_DIR/k8s/argo-rollouts/values.yaml" > /tmp/rollouts-values-rendered.yaml
-
   helm upgrade --install argo-rollouts argo/argo-rollouts \
     -n argo-rollouts \
     --create-namespace \
-    -f /tmp/rollouts-values-rendered.yaml \
+    -f "$BASE_DIR/tools/base/values/argo-rollouts.yaml" \
+    --set "dashboard.ingress.hosts[0]=rollouts.${DOMAIN}" \
     --timeout 5m --wait
-
-  rm -f /tmp/rollouts-values-rendered.yaml
 
   log_ok "Argo Rollouts installed"
 fi

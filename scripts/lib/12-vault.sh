@@ -27,16 +27,54 @@ if [ "$VAULT_STATUS" = "1/1" ]; then
   log_skip "Vault already running"
 else
   log_info "Installing Vault ${VAULT_VERSION}..."
-  sed \
-    -e "s|DOMAIN_PLACEHOLDER|${DOMAIN}|g" \
-    -e "s|AWS_REGION_PLACEHOLDER|${AWS_REGION}|g" \
-    "$BASE_DIR/k8s/vault/values.yaml" > /tmp/vault-values-rendered.yaml
+
+  # Values: base + cloud seal overlay + storageClass + domain ingress
+  STORAGE_OVERLAY="$BASE_DIR/tools/overlays/${CLOUD}/values/storage.yaml"
+  VAULT_OVERLAY="$BASE_DIR/tools/overlays/${CLOUD}/values/vault.yaml"
+
+  # Domain injected via temp file (ingress hosts/tls are nested arrays)
+  cat > /tmp/vault-domain.yaml <<VVALS
+server:
+  ingress:
+    hosts:
+      - host: "vault.${DOMAIN}"
+        paths:
+          - /
+    tls:
+      - secretName: tools-wildcard-tls
+        hosts:
+          - "vault.${DOMAIN}"
+VVALS
+
+  _vault_flags=(
+    -f "$BASE_DIR/tools/base/values/vault.yaml"
+  )
+  [ -f "$STORAGE_OVERLAY" ] && _vault_flags+=(-f "$STORAGE_OVERLAY")
+  [ -f "$VAULT_OVERLAY"   ] && _vault_flags+=(-f "$VAULT_OVERLAY")
+  _vault_flags+=(-f /tmp/vault-domain.yaml)
+
+  # AWS: inject KMS key ARN + region into env vars (read by vault.yaml seal config)
+  if [[ "$CLOUD" == "aws" ]]; then
+    [ -n "${VAULT_KMS_KEY_ARN:-}" ] && \
+      _vault_flags+=(--set "server.extraEnvironmentVars.VAULT_AWSKMS_SEAL_KEY_ID=${VAULT_KMS_KEY_ARN}")
+    _vault_flags+=(--set "server.extraEnvironmentVars.AWS_REGION=${AWS_REGION:-ap-southeast-1}")
+  fi
+
+  # Azure: inject tenant ID + Key Vault name into env vars
+  if [[ "$CLOUD" == "azure" ]]; then
+    [ -n "${AZURE_TENANT_ID:-}"    ] && \
+      _vault_flags+=(--set "server.extraEnvironmentVars.AZURE_TENANT_ID=${AZURE_TENANT_ID}")
+    [ -n "${AZURE_KEY_VAULT_NAME:-}" ] && \
+      _vault_flags+=(--set "server.extraEnvironmentVars.AZURE_KEY_VAULT_NAME=${AZURE_KEY_VAULT_NAME}")
+  fi
+
   helm upgrade --install vault hashicorp/vault \
     -n vault --create-namespace \
     --version "$VAULT_VERSION" \
-    -f /tmp/vault-values-rendered.yaml \
+    "${_vault_flags[@]}" \
     --timeout 5m --wait
-  rm -f /tmp/vault-values-rendered.yaml
+
+  rm -f /tmp/vault-domain.yaml
   log_ok "Vault installed"
 fi
 

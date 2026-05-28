@@ -67,15 +67,20 @@ output "ingress_nlb_dns" {
 }
 
 # ── DNS ───────────────────────────────────────────────────────────────────────
-
-output "route53_name_servers" {
-  value       = var.domain_name != "" ? module.route53[0].name_servers : []
-  description = "Add these NS records to your domain registrar (e.g. Namecheap)"
-}
+# zone_id and name_servers come from the DNS remote state, not this state.
 
 output "route53_zone_id" {
-  value       = var.domain_name != "" ? module.route53[0].zone_id : ""
-  description = "Route53 hosted zone ID"
+  value       = var.domain_name != "" ? local.dns_zone_id : ""
+  description = "Route53 hosted zone ID (sourced from DNS state)"
+}
+
+output "route53_name_servers" {
+  value = (
+    var.domain_name != "" && length(data.terraform_remote_state.dns) > 0
+    ? data.terraform_remote_state.dns[0].outputs.name_servers
+    : []
+  )
+  description = "NS records to configure at your registrar — read from DNS state (infra/aws/dns/)"
 }
 
 output "cluster_name" {

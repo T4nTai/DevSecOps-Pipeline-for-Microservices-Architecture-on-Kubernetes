@@ -1,0 +1,14 @@
+# ingress-nginx AWS overlay values
+# Configures an AWS Network Load Balancer (NLB) via service annotations.
+controller:
+  config:
+    use-proxy-protocol: "true"   # required for NLB to pass real client IPs
+
+  service:
+    type: LoadBalancer
+    annotations:
+      service.beta.kubernetes.io/aws-load-balancer-type: "external"
+      service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: "instance"
+      service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing"
+      service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+      service.beta.kubernetes.io/aws-load-balancer-proxy-protocol: "*"

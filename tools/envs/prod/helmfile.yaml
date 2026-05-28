@@ -1,0 +1,5 @@
+# tools/envs/prod/helmfile.yaml
+environments:
+  prod:
+    values:
+      - values.yaml

@@ -1,0 +1,23 @@
+# SonarQube base values — plain YAML, no template syntax
+# storageClass injected via overlay: values/storage.yaml
+ingress:
+  enabled: false   # managed via tools/ingresses/sonarqube.yaml
+
+persistence:
+  enabled: true
+  storageClass: ""   # set via overlay
+  size: 20Gi
+
+resources:
+  requests:
+    cpu: 200m
+    memory: 1Gi
+  limits:
+    cpu: 1000m
+    memory: 2Gi
+
+postgresql:
+  enabled: true
+  persistence:
+    storageClass: ""
+    size: 10Gi

@@ -1,0 +1,120 @@
+# tools/base/helmfile.yaml
+#
+# Cloud-agnostic Helm releases. NOT applied directly.
+# Overlays import via: bases: ["../../base/helmfile.yaml"]
+#
+# Values layering (last wins):
+#   base/values/*.yaml            cloud-agnostic defaults
+#   overlays/aws/values/*.yaml    AWS-specific (storageClass, LB type)
+#   set: directives in overlay    domain, passwords, cloud-specific strings
+#   envs/{dev,prod}/values.yaml   environment overrides (passed via --state-values-file)
+#
+# Apply:
+#   helmfile -f tools/overlays/aws/helmfile.yaml \
+#            --state-values-file tools/envs/dev/values.yaml sync
+
+repositories:
+  - name: jetstack
+    url: https://charts.jetstack.io
+  - name: ingress-nginx
+    url: https://kubernetes.github.io/ingress-nginx
+  - name: argo
+    url: https://argoproj.github.io/argo-helm
+  - name: jenkins
+    url: https://charts.jenkins.io
+  - name: prometheus-community
+    url: https://prometheus-community.github.io/helm-charts
+  - name: grafana
+    url: https://grafana.github.io/helm-charts
+  - name: sonarqube
+    url: https://SonarSource.github.io/helm-chart-sonarqube
+  - name: harbor
+    url: https://helm.goharbor.io
+  - name: hashicorp
+    url: https://helm.releases.hashicorp.com
+
+helmDefaults:
+  wait: true
+  timeout: 600
+  atomic: false
+  cleanupOnFail: false
+  createNamespace: true
+
+releases:
+
+  - name: cert-manager
+    namespace: cert-manager
+    chart: jetstack/cert-manager
+    version: "v1.14.5"
+    values:
+      - "../../base/values/cert-manager.yaml"
+
+  - name: ingress-nginx
+    namespace: ingress-nginx
+    chart: ingress-nginx/ingress-nginx
+    version: "4.10.1"
+    values:
+      - "../../base/values/ingress-nginx.yaml"
+
+  - name: argocd
+    namespace: argocd
+    chart: argo/argo-cd
+    version: "6.7.14"
+    values:
+      - "../../base/values/argocd.yaml"
+
+  - name: jenkins
+    namespace: jenkins
+    chart: jenkins/jenkins
+    version: "5.1.5"
+    values:
+      - "../../base/values/jenkins.yaml"
+
+  - name: prometheus
+    namespace: monitoring
+    chart: prometheus-community/kube-prometheus-stack
+    version: "58.5.3"
+    values:
+      - "../../base/values/monitoring.yaml"
+
+  - name: loki
+    namespace: monitoring
+    chart: grafana/loki
+    version: "6.6.2"
+    values:
+      - "../../base/values/loki.yaml"
+
+  - name: promtail
+    namespace: monitoring
+    chart: grafana/promtail
+    version: "6.15.5"
+    values:
+      - "../../base/values/promtail.yaml"
+
+  - name: sonarqube
+    namespace: sonarqube
+    chart: sonarqube/sonarqube
+    version: "10.5.1+2816"
+    values:
+      - "../../base/values/sonarqube.yaml"
+
+  - name: harbor
+    namespace: harbor
+    chart: harbor/harbor
+    version: "1.14.2"
+    values:
+      - "../../base/values/harbor.yaml"
+
+  - name: vault
+    namespace: vault
+    chart: hashicorp/vault
+    version: "0.28.0"
+    values:
+      - "../../base/values/vault.yaml"
+
+  - name: argo-rollouts
+    namespace: argo-rollouts
+    chart: argo/argo-rollouts
+    version: "2.35.3"
+    values:
+      - "../../base/values/argo-rollouts.yaml"

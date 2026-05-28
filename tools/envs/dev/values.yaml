@@ -1,0 +1,32 @@
+# Dev environment values
+# Injected via: helmfile --state-values-file tools/envs/dev/values.yaml
+
+# ── Domain ────────────────────────────────────────────────────────────────────
+domain: ""   # e.g. tools.example.com — set in CI or .env
+
+# ── Let's Encrypt ─────────────────────────────────────────────────────────────
+acmeServer: https://acme-staging-v02.api.letsencrypt.org/directory   # staging: no rate limits
+acmeEmail: ""   # set in CI or .env
+
+# ── AWS ───────────────────────────────────────────────────────────────────────
+awsRegion: "ap-southeast-1"
+certManagerIrsaRoleArn: ""   # set from terraform output
+vaultKmsKeyArn: ""            # set from terraform output
+dnsTfStateBucket: ""          # S3 bucket holding infra/aws/dns/ state
+
+# ── Azure ─────────────────────────────────────────────────────────────────────
+azureTenantId: ""
+azureKeyVaultName: ""
+certManagerClientId: ""
+
+# ── Credentials (loaded from .env.secret, never committed) ───────────────────
+grafanaAdminPassword: ""
+jenkinsAdminPassword: ""
+harborAdminPassword: ""
+
+# ── Replica counts: minimal for dev ──────────────────────────────────────────
+replicaCounts:
+  argocd: 1
+  jenkins: 1
+  grafana: 1
+  vault: 1

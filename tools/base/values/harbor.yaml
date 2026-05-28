@@ -1,0 +1,108 @@
+# Harbor base values — plain YAML, no template syntax
+# Domain + password + storageClass injected via overlay set + values/storage.yaml
+expose:
+  type: ingress
+  ingress:
+    hosts:
+      core: ""   # set via overlay: harbor.DOMAIN
+    annotations:
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/proxy-body-size: "0"
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+      nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+    className: nginx
+  tls:
+    enabled: true
+    secret:
+      secretName: tools-wildcard-tls
+
+externalURL: ""   # set via overlay: https://harbor.DOMAIN
+
+persistence:
+  enabled: true
+  resourcePolicy: "keep"
+  persistentVolumeClaim:
+    registry:
+      storageClass: ""   # set via overlay: values/storage.yaml
+      size: 10Gi
+    jobservice:
+      jobLog:
+        storageClass: ""
+        size: 1Gi
+    database:
+      storageClass: ""
+      size: 1Gi
+    redis:
+      storageClass: ""
+      size: 1Gi
+    trivy:
+      storageClass: ""
+      size: 5Gi
+
+harborAdminPassword: ""   # set via overlay set
+
+core:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+jobservice:
+  replicas: 1
+  updateStrategy:
+    type: Recreate
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+registry:
+  replicas: 1
+  updateStrategy:
+    type: Recreate
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+trivy:
+  enabled: true
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+notary:
+  enabled: false
+
+database:
+  internal:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+redis:
+  internal:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi

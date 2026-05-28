@@ -70,9 +70,83 @@ TFVARS
   fi
 fi
 
-# ── Terraform init + apply ────────────────────────────────────────────────────
+# ── AWS: apply DNS state FIRST (independent zone lifecycle) ──────────────────
+# The Route53 zone lives in infra/aws/dns/ — a separate Terraform state.
+# It must be applied before the cluster state because the cluster reads
+# zone_id from it via terraform_remote_state.
+#
+# On the very first deploy the zone is created here.
+# On subsequent deploys this is a no-op (zone already exists, no changes).
+# The cluster can be destroyed and rebuilt without touching this state.
+if [[ "$CLOUD" == "aws" ]] && [ -n "${DOMAIN:-}" ]; then
+  DNS_DIR="${BASE_DIR}/infra/aws/dns"
+  DNS_TFVARS="${DNS_DIR}/terraform.tfvars"
+
+  echo ""
+  log_info "── DNS state (infra/aws/dns/) ──"
+
+  # Auto-generate terraform.tfvars for DNS state from env vars
+  if [ ! -f "$DNS_TFVARS" ] || [ -n "${DNS_STATE_BUCKET:-}" ]; then
+    cat > "$DNS_TFVARS" <<DNSVAR
+aws_region  = "${AWS_REGION:-ap-southeast-1}"
+domain_name = "${DOMAIN}"
+tags = {
+  Project   = "${PROJECT_NAME:-devsecops}"
+  ManagedBy = "terraform"
+  Component = "dns"
+}
+DNSVAR
+    log_info "DNS terraform.tfvars written"
+  fi
+
+  cd "$DNS_DIR"
+  terraform init -upgrade=false
+
+  # Import existing zone if it's not yet tracked in DNS state
+  EXISTING_ZONE_ID=$(aws route53 list-hosted-zones-by-name \
+    --dns-name "${DOMAIN}." \
+    --query "HostedZones[?Name=='${DOMAIN}.'].Id" \
+    --output text 2>/dev/null \
+    | sed 's|/hostedzone/||' | tr -d '[:space:]' || true)
+
+  if [ -n "$EXISTING_ZONE_ID" ] && [ "$EXISTING_ZONE_ID" != "None" ]; then
+    if terraform state show "aws_route53_zone.this" > /dev/null 2>&1; then
+      log_skip "DNS zone already in state: $EXISTING_ZONE_ID"
+    else
+      log_info "Importing existing zone $EXISTING_ZONE_ID → DNS state..."
+      terraform import "aws_route53_zone.this" "$EXISTING_ZONE_ID" \
+        && log_ok "Zone imported: $EXISTING_ZONE_ID" \
+        || log_warn "Zone import failed — terraform apply will attempt to create"
+    fi
+  fi
+
+  terraform apply -auto-approve -parallelism=5
+  ROUTE53_ZONE_ID=$(terraform output -raw zone_id 2>/dev/null || echo "")
+  ROUTE53_NS=$(terraform output -json name_servers 2>/dev/null \
+    | jq -r '.[]' 2>/dev/null | tr '\n' ',' | sed 's/,$//' || echo "")
+
+  if [ -n "$ROUTE53_ZONE_ID" ]; then
+    log_ok "DNS state: zone $ROUTE53_ZONE_ID"
+    echo ""
+    echo "  ┌─────────────────────────────────────────────────────────────┐"
+    echo "  │  NAMECHEAP ACTION REQUIRED (first deploy only)              │"
+    echo "  │  Set these NS records for ${DOMAIN}:                        │"
+    echo "  │                                                             │"
+    IFS=',' read -ra NS_ARR <<< "$ROUTE53_NS"
+    for ns in "${NS_ARR[@]}"; do
+      printf "  │    %-55s │\n" "$ns"
+    done
+    echo "  │                                                             │"
+    echo "  │  Step 09 will verify delegation before cert-manager runs   │"
+    echo "  └─────────────────────────────────────────────────────────────┘"
+  fi
+
+  cd "$BASE_DIR"
+fi
+
+# ── Cluster state: init + apply ───────────────────────────────────────────────
 cd "$ENV_DIR"
-log_run "Terraform init..."
+log_run "Terraform init (cluster state)..."
 
 if [[ "$CLOUD" == "azure" ]]; then
   BACKEND_CONF="${ENV_DIR}/backend.conf"
@@ -82,39 +156,7 @@ else
   terraform init -upgrade=false
 fi
 
-# ── Route53 zone: import if exists (AWS only) ─────────────────────────────────
-# If the zone already exists in AWS but not in Terraform state (e.g. after a
-# terraform destroy that skipped the zone due to prevent_destroy, or a manual
-# import), we import it so terraform apply reuses it instead of creating new.
-# This keeps NS records stable — no need to update Namecheap on every redeploy.
-if [[ "$CLOUD" == "aws" ]] && [ -n "${DOMAIN:-}" ]; then
-  log_info "Checking for existing Route53 zone: ${DOMAIN}..."
-
-  EXISTING_ZONE_ID=$(aws route53 list-hosted-zones-by-name \
-    --dns-name "${DOMAIN}." \
-    --query "HostedZones[?Name=='${DOMAIN}.'].Id" \
-    --output text 2>/dev/null \
-    | sed 's|/hostedzone/||' | tr -d '[:space:]' || true)
-
-  if [ -n "$EXISTING_ZONE_ID" ] && [ "$EXISTING_ZONE_ID" != "None" ]; then
-    # Check if already tracked in Terraform state
-    if terraform state show "module.route53[0].aws_route53_zone.this" \
-        > /dev/null 2>&1; then
-      log_skip "Route53 zone already in state: $EXISTING_ZONE_ID"
-    else
-      log_info "Importing existing zone $EXISTING_ZONE_ID into Terraform state..."
-      terraform import "module.route53[0].aws_route53_zone.this" \
-        "$EXISTING_ZONE_ID" && log_ok "Zone imported: $EXISTING_ZONE_ID" \
-        || log_warn "Zone import failed — terraform apply will attempt to create"
-    fi
-  else
-    log_info "No existing Route53 zone found — terraform apply will create one"
-    log_warn "After apply: copy the NS records from output and set them in Namecheap"
-    log_warn "cert-manager (step 09) will wait for NS delegation before issuing cert"
-  fi
-fi
-
-log_run "Terraform apply..."
+log_run "Terraform apply (cluster state)..."
 terraform apply -auto-approve -parallelism=20
 
 # ── Read outputs into state file ──────────────────────────────────────────────

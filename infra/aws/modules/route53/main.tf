@@ -1,24 +1,19 @@
-resource "aws_route53_zone" "this" {
-  name = var.domain_name
+# Route53 DNS records module
+#
+# This module manages ONLY the A records (apex + wildcard) pointing to the
+# ingress NLB. The Route53 ZONE itself lives in a separate Terraform state
+# (infra/aws/dns/) and is never destroyed during cluster rebuilds.
+#
+# Inputs:
+#   zone_id      — from data.terraform_remote_state.dns.outputs.zone_id
+#   nlb_dns_name — from module.ingress_nlb.dns_name
+#   nlb_zone_id  — from module.ingress_nlb.zone_id (stable even if NLB is replaced)
 
-  tags = merge(var.tags, { Name = var.domain_name })
-
-  lifecycle {
-    # CRITICAL: Never destroy this zone. Destroying it assigns NEW nameservers,
-    # which breaks TLS issuance until the registrar (e.g. Namecheap) is manually
-    # updated — a process that can take hours due to DNS propagation delays.
-    #
-    # The zone outlives the cluster. On redeploy, `01-terraform.sh` imports the
-    # existing zone into state so `terraform apply` reuses it instead of recreating.
-    #
-    # To intentionally delete: remove this lifecycle block first, then destroy.
-    prevent_destroy = true
-  }
-}
-
-# Apex ALIAS A record → NLB
+# Apex ALIAS A record → ingress NLB
+# ALIAS (not CNAME) so Route53 evaluates target health and routes traffic
+# away from an unhealthy NLB. Resolves without an extra DNS hop.
 resource "aws_route53_record" "apex" {
-  zone_id = aws_route53_zone.this.zone_id
+  zone_id = var.zone_id
   name    = var.domain_name
   type    = "A"
 
@@ -29,13 +24,10 @@ resource "aws_route53_record" "apex" {
   }
 }
 
-# Wildcard ALIAS A record → NLB
-# Using ALIAS (not CNAME) so Route53 can evaluate_target_health and route
-# traffic away from an unhealthy NLB. CNAME has no health awareness.
-# ALIAS also resolves without an extra DNS hop, and NLB zone_id is stable
-# even if the NLB is replaced (unlike raw DNS name which can change).
+# Wildcard ALIAS A record → ingress NLB
+# Covers all subdomains: jenkins.*, argocd.*, grafana.*, etc.
 resource "aws_route53_record" "wildcard" {
-  zone_id = aws_route53_zone.this.zone_id
+  zone_id = var.zone_id
   name    = "*.${var.domain_name}"
   type    = "A"
 

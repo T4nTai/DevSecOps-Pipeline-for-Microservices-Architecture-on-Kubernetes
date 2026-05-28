@@ -1,0 +1,11 @@
+# cert-manager AWS overlay values
+# Annotates the cert-manager ServiceAccount for IRSA so the pod can call
+# Route53 APIs for DNS-01 challenges without static AWS credentials.
+#
+# The role ARN is injected at apply time via helmfile set: from state values:
+#   certManagerIrsaRoleArn: arn:aws:iam::ACCOUNT_ID:role/cert-manager-irsa
+# See tools/overlays/aws/helmfile.yaml for the set: directive.
+
+serviceAccount:
+  annotations:
+    eks.amazonaws.com/role-arn: ""   # overridden by helmfile set:

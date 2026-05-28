@@ -1,0 +1,25 @@
+# Remote state backend for the DNS state.
+# Copy to backend.tf and fill in your S3 bucket details.
+#
+# This state MUST use a DIFFERENT key from the cluster state.
+# The cluster state (infra/aws/envs/tools/) reads from this backend
+# via terraform_remote_state — they must share the same bucket + region.
+#
+# Setup (one-time):
+#   aws s3 mb s3://YOUR-BUCKET --region ap-southeast-1
+#   aws s3api put-bucket-versioning \
+#     --bucket YOUR-BUCKET --versioning-configuration Status=Enabled
+#
+# Then: terraform -chdir=infra/aws/dns init -backend-config=backend.tf
+
+terraform {
+  backend "s3" {
+    bucket  = "YOUR-TFSTATE-BUCKET"
+    key     = "dns/terraform.tfstate"      # note: different from cluster key
+    region  = "ap-southeast-1"
+    encrypt = true
+
+    # Optional: DynamoDB for state locking
+    # dynamodb_table = "YOUR-LOCK-TABLE"
+  }
+}
