@@ -1,0 +1,15 @@
+# Wildcard TLS certificate — applied by scripts/lib/09-cert-manager.sh via envsubst
+# Variables: ${DOMAIN} — from .env or state file
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: tools-wildcard
+  namespace: ingress-nginx
+spec:
+  secretName: tools-wildcard-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+    - "${DOMAIN}"
+    - "*.${DOMAIN}"

@@ -165,5 +165,11 @@ variable "vault_kms_key_arn" {
 variable "domain_name" {
   type        = string
   default     = ""
-  description = "Subdomain for tools cluster services (e.g. tools.example.com). Required if using Route53 module."
+  description = "Subdomain for tools cluster services (e.g. tools.example.com). Required when using Route53."
+}
+
+variable "dns_state_bucket" {
+  type        = string
+  default     = ""
+  description = "S3 bucket holding the DNS Terraform state (infra/aws/dns/). Required when domain_name is set."
 }

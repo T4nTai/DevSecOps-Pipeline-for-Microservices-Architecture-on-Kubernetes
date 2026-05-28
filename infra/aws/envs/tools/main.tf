@@ -12,6 +12,31 @@ provider "aws" {
   region = var.aws_region
 }
 
+# ── DNS remote state ──────────────────────────────────────────────────────────
+# Reads zone_id from the separate DNS state (infra/aws/dns/).
+# The DNS state must be applied FIRST (step 01 handles this automatically).
+# Only activated when domain_name is set; skipped in domain-less deployments.
+data "terraform_remote_state" "dns" {
+  count   = var.domain_name != "" ? 1 : 0
+  backend = "s3"
+
+  config = {
+    bucket = var.dns_state_bucket
+    key    = "dns/terraform.tfstate"
+    region = var.aws_region
+  }
+}
+
+locals {
+  # zone_id is sourced from the DNS remote state when domain_name is set.
+  # Falls back to "" so the route53 module is simply not called (count = 0).
+  dns_zone_id = (
+    var.domain_name != "" && length(data.terraform_remote_state.dns) > 0
+    ? data.terraform_remote_state.dns[0].outputs.zone_id
+    : ""
+  )
+}
+
 # ── VPC ───────────────────────────────────────────────────────────────────────
 
 module "vpc" {
@@ -120,15 +145,18 @@ module "ingress_nlb" {
   tags              = local.common_tags
 }
 
-# ── Route53 hosted zone + wildcard DNS ───────────────────────────────────────
-# Only created when domain_name is set.
+# ── Route53 A records → ingress NLB ──────────────────────────────────────────
+# Creates apex + wildcard ALIAS records in the zone managed by infra/aws/dns/.
+# The zone itself is NOT created here — zone_id is read from the DNS remote state.
+# This decoupling means cluster destroy/apply never touches the hosted zone,
+# so NS records at the registrar (Namecheap) never need updating.
 
 module "route53" {
   count  = var.domain_name != "" ? 1 : 0
   source = "../../modules/route53"
 
+  zone_id      = local.dns_zone_id
   domain_name  = var.domain_name
   nlb_dns_name = module.ingress_nlb.dns_name
   nlb_zone_id  = module.ingress_nlb.zone_id
-  tags         = local.common_tags
 }

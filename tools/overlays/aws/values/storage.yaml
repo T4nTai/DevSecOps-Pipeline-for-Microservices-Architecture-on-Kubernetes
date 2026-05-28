@@ -1,0 +1,3 @@
+# AWS storage overlay — sets storageClass for all releases that need PVCs
+# ebs-sc is created by scripts/lib/02-kubespray.sh (EBS CSI driver install step)
+storageClass: ebs-sc

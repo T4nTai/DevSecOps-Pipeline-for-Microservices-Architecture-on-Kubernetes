@@ -1,0 +1,29 @@
+# cert-manager base values
+# Cloud-specific IRSA / workload-identity annotations added in overlays.
+installCRDs: true
+
+extraArgs:
+  - --dns01-recursive-nameservers=8.8.8.8:53,1.1.1.1:53
+  - --dns01-recursive-nameservers-only
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 128Mi
+
+webhook:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 20m
+      memory: 32Mi
+
+cainjector:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 20m
+      memory: 64Mi

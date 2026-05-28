@@ -1,0 +1,8 @@
+# ingress-nginx Azure overlay values
+# Uses Azure Standard Load Balancer (internal=false for public access).
+controller:
+  service:
+    type: LoadBalancer
+    annotations:
+      service.beta.kubernetes.io/azure-load-balancer-health-probe-request-path: /healthz
+      service.beta.kubernetes.io/azure-load-balancer-tcp-idle-timeout: "30"

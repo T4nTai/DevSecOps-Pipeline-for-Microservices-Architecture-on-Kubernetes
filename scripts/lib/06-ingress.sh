@@ -125,6 +125,13 @@ log_info "Deploying NGINX Ingress..."
 helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx 2>/dev/null || true
 helm repo update 2>/dev/null || true
 
+# Values: base (NodePort defaults) + cloud overlay (AWS NLB / Azure LB annotations)
+_nginx_flags=(
+  -f "$BASE_DIR/tools/base/values/ingress-nginx.yaml"
+)
+NGINX_OVERLAY="$BASE_DIR/tools/overlays/${CLOUD}/values/ingress-nginx.yaml"
+[ -f "$NGINX_OVERLAY" ] && _nginx_flags+=(-f "$NGINX_OVERLAY")
+
 INGRESS_STATUS=$(kubectl get deployment ingress-nginx-controller \
   -n ingress-nginx --no-headers 2>/dev/null | awk '{print $2}' || echo "0/0")
 
@@ -132,12 +139,12 @@ if [ "$INGRESS_STATUS" = "1/1" ]; then
   log_skip "NGINX Ingress already running — upgrading config..."
   helm upgrade ingress-nginx ingress-nginx/ingress-nginx \
     -n ingress-nginx \
-    -f "$BASE_DIR/k8s/ingress/nginx-values.yaml" \
+    "${_nginx_flags[@]}" \
     --timeout 5m --wait
 else
   helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
     -n ingress-nginx --create-namespace \
-    -f "$BASE_DIR/k8s/ingress/nginx-values.yaml" \
+    "${_nginx_flags[@]}" \
     --timeout 5m --wait
   log_ok "NGINX Ingress deployed"
 fi

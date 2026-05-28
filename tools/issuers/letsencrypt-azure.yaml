@@ -1,0 +1,22 @@
+# ClusterIssuer — Let's Encrypt via HTTP-01 (Azure / generic)
+#
+# Uses HTTP-01 challenge — no DNS provider credential needed.
+# Works with any public load balancer (Azure LB, bare-metal, etc.).
+#
+# Applied by: envsubst < tools/issuers/letsencrypt-azure.yaml | kubectl apply -f -
+# Variables:
+#   ${ACME_EMAIL}  — from .env or Azure Key Vault secret
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: ${ACME_EMAIL}
+    privateKeySecretRef:
+      name: letsencrypt-prod-key
+    solvers:
+      - http01:
+          ingress:
+            class: nginx

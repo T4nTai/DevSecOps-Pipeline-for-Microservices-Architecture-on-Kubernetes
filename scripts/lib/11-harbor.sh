@@ -28,11 +28,24 @@ helm repo add harbor https://helm.goharbor.io 2>/dev/null || true
 helm repo update 2>/dev/null || true
 log_ok "Helm repo ready"
 
-# ── Render values (inject password) ──────────────────────────────────────────
-sed \
-  -e "s|HARBOR_ADMIN_PASSWORD_PLACEHOLDER|${HARBOR_ADMIN_PASSWORD}|g" \
-  -e "s|DOMAIN_PLACEHOLDER|${DOMAIN}|g" \
-  "$BASE_DIR/k8s/harbor/values.yaml" > /tmp/harbor-values-rendered.yaml
+# ── Values: base + cloud storageClass overlay + domain/password ───────────────
+STORAGE_OVERLAY="$BASE_DIR/tools/overlays/${CLOUD}/values/storage.yaml"
+
+# Domain + password written to temp file (nested harbor keys work better this way)
+cat > /tmp/harbor-domain.yaml <<HVALS
+expose:
+  ingress:
+    hosts:
+      core: "harbor.${DOMAIN}"
+externalURL: "https://harbor.${DOMAIN}"
+harborAdminPassword: "${HARBOR_ADMIN_PASSWORD}"
+HVALS
+
+_harbor_flags=(
+  -f "$BASE_DIR/tools/base/values/harbor.yaml"
+)
+[ -f "$STORAGE_OVERLAY" ] && _harbor_flags+=(-f "$STORAGE_OVERLAY")
+_harbor_flags+=(-f /tmp/harbor-domain.yaml)
 
 # ── Install / Upgrade Harbor ──────────────────────────────────────────────────
 echo ""
@@ -46,12 +59,12 @@ else
   helm upgrade --install harbor harbor/harbor \
     -n harbor --create-namespace \
     --version "$HARBOR_VERSION" \
-    -f /tmp/harbor-values-rendered.yaml \
+    "${_harbor_flags[@]}" \
     --timeout 10m --wait
   log_ok "Harbor installed"
 fi
 
-rm -f /tmp/harbor-values-rendered.yaml
+rm -f /tmp/harbor-domain.yaml
 
 # ── CoreDNS rewrite: harbor.DOMAIN → harbor-core ClusterIP (hairpin NAT fix) ──
 echo ""
@@ -65,7 +78,7 @@ else
     -p "{\"data\":{\"Corefile\":$(echo "$NEW_COREFILE" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')}}"
   kubectl rollout restart deployment/coredns -n kube-system
   kubectl rollout status deployment/coredns -n kube-system --timeout=60s 2>/dev/null || true
-  log_ok "CoreDNS: harbor.${DOMAIN} → harbor-core.harbor.svc.cluster.local (no hardcoded IP)"
+  log_ok "CoreDNS: harbor.${DOMAIN} → harbor-core.harbor.svc.cluster.local"
 fi
 
 # ── Verify ────────────────────────────────────────────────────────────────────

@@ -1,0 +1,48 @@
+# Jenkins base values — plain YAML, no template syntax
+# Domain + password injected via overlay set directives
+controller:
+  adminPassword: ""      # set via: --set controller.adminPassword=...
+  jenkinsUrl: ""         # set via: --set controller.jenkinsUrl=https://jenkins.DOMAIN
+  jenkinsUriPrefix: ""
+
+  systemMessage: "DevSecOps Jenkins"
+  numExecutors: 0
+
+  customStartupProbe:
+    httpGet:
+      path: /login
+      port: 8080
+    failureThreshold: 12
+    periodSeconds: 10
+    successThreshold: 1
+    timeoutSeconds: 5
+
+  serviceType: ClusterIP
+  servicePort: 8080
+
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+
+  additionalPlugins:
+    - github:1.40.0
+    - github-api:1.318-461.v7a_c09c9fa_d63
+
+persistence:
+  enabled: true
+  storageClass: ""   # set via overlay: values/storage.yaml
+  size: 10Gi
+
+agent:
+  enabled: true
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 300m
+      memory: 256Mi

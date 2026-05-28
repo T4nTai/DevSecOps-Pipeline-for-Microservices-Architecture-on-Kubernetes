@@ -1,0 +1,3 @@
+# Azure storage overlay — sets storageClass for all releases that need PVCs
+# managed-premium = Azure Premium SSD (default StorageClass created by Kubespray on Azure)
+storageClass: managed-premium

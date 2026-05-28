@@ -134,7 +134,7 @@ else
   helm upgrade --install cert-manager jetstack/cert-manager \
     -n cert-manager --create-namespace \
     --version "$CERT_MANAGER_VERSION" \
-    -f "$BASE_DIR/k8s/cert-manager/values.yaml" \
+    -f "$BASE_DIR/tools/base/values/cert-manager.yaml" \
     --timeout 5m --wait
   log_ok "cert-manager installed"
 fi
@@ -159,6 +159,13 @@ log_info "Applying ClusterIssuer (Let's Encrypt + Route53)..."
 
 if [ -n "${ROUTE53_ZONE_ID:-}" ]; then
   log_info "  Using hostedZoneID: ${ROUTE53_ZONE_ID}"
+  # Use canonical template from tools/issuers/ (single source of truth)
+  envsubst < "$BASE_DIR/tools/issuers/letsencrypt-route53.yaml" | kubectl apply -f -
+else
+  # Fallback: no zone ID — cert-manager auto-discovers the zone via ListHostedZones.
+  # Slower but functional when IAM stateful role has route53:ListHostedZones.
+  log_warn "ROUTE53_ZONE_ID not set — cert-manager will auto-discover the zone"
+  # Inline fallback without hostedZoneID
   kubectl apply -f - <<EOF
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
@@ -174,13 +181,7 @@ spec:
       - dns01:
           route53:
             region: ${AWS_REGION}
-            hostedZoneID: ${ROUTE53_ZONE_ID}
 EOF
-else
-  # Fallback: no zone ID — cert-manager auto-discovers the zone.
-  # Slower but still works if IAM stateful role has route53:ListHostedZones.
-  log_warn "ROUTE53_ZONE_ID not set — cert-manager will auto-discover the zone"
-  envsubst < "$BASE_DIR/k8s/cert-manager/cluster-issuer.yaml" | kubectl apply -f -
 fi
 log_ok "ClusterIssuer applied"
 
@@ -205,7 +206,7 @@ done
 # ── Wildcard Certificate ──────────────────────────────────────────────────────
 echo ""
 log_info "Requesting wildcard certificate for *.${DOMAIN}..."
-envsubst < "$BASE_DIR/k8s/cert-manager/certificate.yaml" | kubectl apply -f -
+envsubst < "$BASE_DIR/tools/issuers/certificate.yaml" | kubectl apply -f -
 
 # ── Wait for certificate — extended timeout for DNS propagation ───────────────
 # DNS-01 challenges can take longer than 5 min when:
@@ -244,41 +245,56 @@ else
   exit 1
 fi
 
-# ── Update ingress rules ──────────────────────────────────────────────────────
+# ── Apply ingress rules (from tools/ingresses/ — single source of truth) ──────
+# tools/ingresses/*.yaml.gotmpl use {{ .Values.domain }} for Helmfile.
+# Shell scripts use envsubst with a helper that converts gotmpl → shell vars.
 echo ""
-log_info "Applying updated ingress rules..."
+log_info "Applying ingress rules from tools/ingresses/..."
 
-envsubst < "$BASE_DIR/k8s/jenkins/ingress.yaml" | kubectl apply -f -
-log_ok "Jenkins ingress updated"
+_apply_ingress() {
+  local f="$1" name="$2"
+  envsubst < "$f" | kubectl apply -f -
+  log_ok "${name} ingress applied"
+}
 
-envsubst < "$BASE_DIR/k8s/argocd/ingress.yaml" | kubectl apply -f -
-log_ok "ArgoCD ingress updated"
+_apply_ingress "$BASE_DIR/tools/ingresses/argocd.yaml"   ArgoCD
+_apply_ingress "$BASE_DIR/tools/ingresses/jenkins.yaml"  Jenkins
 
-# Grafana — upgrade helm release với values mới
-sed \
-  -e "s|GRAFANA_ADMIN_PASSWORD_PLACEHOLDER|${GRAFANA_ADMIN_PASSWORD:-}|g" \
-  -e "s|DOMAIN_PLACEHOLDER|${DOMAIN}|g" \
-  "$BASE_DIR/k8s/monitoring/values.yaml" > /tmp/monitoring-values-rendered.yaml
+# Grafana ingress is managed by kube-prometheus-stack Helm chart (enabled in monitoring.yaml.gotmpl).
+# Re-run Helm upgrade with rendered values to pick up the domain.
+log_info "Upgrading Prometheus stack (Grafana domain: grafana.${DOMAIN})..."
+cat > /tmp/grafana-values.yaml <<GVALS
+grafana:
+  adminPassword: ${GRAFANA_ADMIN_PASSWORD:-}
+  ingress:
+    hosts: ["grafana.${DOMAIN}"]
+    tls:
+      - hosts: ["grafana.${DOMAIN}"]
+        secretName: tools-wildcard-tls
+  grafana.ini:
+    server:
+      root_url: "https://grafana.${DOMAIN}"
+GVALS
 helm upgrade prometheus prometheus-community/kube-prometheus-stack \
   -n monitoring \
-  -f /tmp/monitoring-values-rendered.yaml \
+  -f /tmp/grafana-values.yaml \
   --reuse-values \
   --timeout 5m
-rm -f /tmp/monitoring-values-rendered.yaml
+rm -f /tmp/grafana-values.yaml
 log_ok "Grafana ingress updated"
 
-# ── Update Jenkins jenkinsUrl ─────────────────────────────────────────────────
-echo ""
+# Jenkins domain + URL update via Helm values
 log_info "Updating Jenkins URL to https://jenkins.${DOMAIN}..."
-
-sed \
-  -e "s|JENKINS_ADMIN_PASSWORD_PLACEHOLDER|${JENKINS_ADMIN_PASSWORD:-}|g" \
-  -e "s|DOMAIN_PLACEHOLDER|${DOMAIN}|g" \
-  "$BASE_DIR/k8s/jenkins/values.yaml" > /tmp/jenkins-values-rendered.yaml
+cat > /tmp/jenkins-domain.yaml <<JVALS
+controller:
+  adminPassword: ${JENKINS_ADMIN_PASSWORD:-}
+  jenkinsUrl: "https://jenkins.${DOMAIN}"
+JVALS
 helm upgrade jenkins jenkins/jenkins -n jenkins \
-  -f /tmp/jenkins-values-rendered.yaml \
+  -f /tmp/jenkins-domain.yaml \
+  --reuse-values \
   --timeout 5m
-rm -f /tmp/jenkins-values-rendered.yaml
+rm -f /tmp/jenkins-domain.yaml
 log_ok "Jenkins URL updated"
 
 # ── Verify ────────────────────────────────────────────────────────────────────

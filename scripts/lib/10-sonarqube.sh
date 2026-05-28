@@ -51,7 +51,7 @@ log_ok "SonarQube running"
 # ── Ingress ───────────────────────────────────────────────────────────────────
 echo ""
 log_info "Applying SonarQube ingress..."
-envsubst < "$BASE_DIR/k8s/sonarqube/ingress.yaml" | kubectl apply -f -
+envsubst < "$BASE_DIR/tools/ingresses/sonarqube.yaml" | kubectl apply -f -
 log_ok "SonarQube ingress applied"
 
 # ── Verify ────────────────────────────────────────────────────────────────────

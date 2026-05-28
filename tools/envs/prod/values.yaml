@@ -1,0 +1,32 @@
+# Prod environment values
+# Injected via: helmfile --state-values-file tools/envs/prod/values.yaml
+
+# ── Domain ────────────────────────────────────────────────────────────────────
+domain: ""   # e.g. tools.example.com — set in CI or .env
+
+# ── Let's Encrypt ─────────────────────────────────────────────────────────────
+acmeServer: https://acme-v02.api.letsencrypt.org/directory   # production issuer
+acmeEmail: ""   # set in CI or .env
+
+# ── AWS ───────────────────────────────────────────────────────────────────────
+awsRegion: "ap-southeast-1"
+certManagerIrsaRoleArn: ""
+vaultKmsKeyArn: ""
+dnsTfStateBucket: ""
+
+# ── Azure ─────────────────────────────────────────────────────────────────────
+azureTenantId: ""
+azureKeyVaultName: ""
+certManagerClientId: ""
+
+# ── Credentials (loaded from .env.secret, never committed) ───────────────────
+grafanaAdminPassword: ""
+jenkinsAdminPassword: ""
+harborAdminPassword: ""
+
+# ── Replica counts: HA for prod ───────────────────────────────────────────────
+replicaCounts:
+  argocd: 2
+  jenkins: 1
+  grafana: 2
+  vault: 3     # HA Vault with Raft
