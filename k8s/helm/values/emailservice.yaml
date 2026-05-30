@@ -1,0 +1,30 @@
+image:
+  repository: library/emailservice
+  tag: "latest"
+  pullSecret: harbor-credentials
+  harborImage: true
+
+port:
+  container: 8080
+  service: 8080
+
+probe:
+  type: grpc
+  initialDelaySeconds: 10
+  periodSeconds: 10
+
+env:
+  - name: PORT
+    value: "8080"
+  - name: DISABLE_PROFILER
+    value: "1"
+
+canary:
+  enabled: true
+  trafficRouting:
+    enabled: false
+  steps:
+    - setWeight: 20
+    - pause:
+        duration: 30s
+    - setWeight: 100

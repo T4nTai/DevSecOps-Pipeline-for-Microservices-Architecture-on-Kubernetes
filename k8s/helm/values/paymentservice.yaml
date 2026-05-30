@@ -1,0 +1,18 @@
+image:
+  repository: gcr.io/google-samples/microservices-demo/paymentservice
+  tag: "v0.10.1"
+
+port:
+  container: 50051
+  service: 50051
+
+probe:
+  type: grpc
+  initialDelaySeconds: 10
+  periodSeconds: 10
+
+env:
+  - name: PORT
+    value: "50051"
+  - name: DISABLE_PROFILER
+    value: "1"

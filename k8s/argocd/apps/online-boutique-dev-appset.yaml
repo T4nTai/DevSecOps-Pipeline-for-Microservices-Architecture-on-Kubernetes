@@ -1,7 +1,11 @@
+# Applied by: envsubst < k8s/argocd/apps/online-boutique-dev-appset.yaml | kubectl apply -f -
+# Watches: develop branch
+# Deploys to: namespace boutique-dev
+# Image tags: dev-N  (pushed by Jenkins on merge to develop)
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
-  name: online-boutique
+  name: online-boutique-dev
   namespace: argocd
   annotations:
     argocd.argoproj.io/sync-wave: "2"
@@ -20,7 +24,7 @@ spec:
           - service: emailservice
             ingressHost: ""
           - service: frontend
-            ingressHost: "app.${DOMAIN}"
+            ingressHost: "app-dev.${DOMAIN}"
           - service: loadgenerator
             ingressHost: ""
           - service: paymentservice
@@ -36,13 +40,13 @@ spec:
 
   template:
     metadata:
-      name: '{{service}}'
+      name: 'dev-{{service}}'
     spec:
       project: default
 
       source:
         repoURL: https://github.com/T4nTai/DevSecOps-Pipeline-for-Microservices-Architecture-on-Kubernetes.git
-        targetRevision: HEAD
+        targetRevision: develop
         path: k8s/helm/microservice
         helm:
           releaseName: '{{service}}'
@@ -56,7 +60,7 @@ spec:
 
       destination:
         name: in-cluster
-        namespace: default
+        namespace: boutique-dev
 
       syncPolicy:
         automated:
