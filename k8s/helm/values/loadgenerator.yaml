@@ -1,0 +1,31 @@
+image:
+  repository: gcr.io/google-samples/microservices-demo/loadgenerator
+  tag: "v0.10.1"
+
+probe:
+  type: none            # loadgenerator has no health endpoint
+
+service:
+  enabled: false        # no service needed, generates traffic only
+
+resources:
+  requests:
+    cpu: "300m"
+    memory: "256Mi"
+  limits:
+    cpu: "500m"
+    memory: "512Mi"
+
+env:
+  - name: FRONTEND_ADDR
+    value: "frontend:80"
+  - name: USERS
+    value: "10"
+
+initContainers:
+  - name: wait-frontend
+    image: busybox:1.36
+    command:
+      - sh
+      - -c
+      - until wget -q --spider http://frontend/; do echo waiting for frontend; sleep 2; done

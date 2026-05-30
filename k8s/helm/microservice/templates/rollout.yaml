@@ -1,0 +1,54 @@
+{{- if .Values.canary.enabled }}
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Values.namespace }}
+spec:
+  replicas: {{ .Values.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}
+    spec:
+      {{- if .Values.image.pullSecret }}
+      imagePullSecrets:
+        - name: {{ .Values.image.pullSecret }}
+      {{- end }}
+      containers:
+        - name: {{ .Release.Name }}
+          image: {{ include "microservice.fullImage" . }}:{{ .Values.image.tag }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.port.container }}
+          {{- if .Values.env }}
+          env:
+            {{- toYaml .Values.env | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          {{- if ne .Values.probe.type "none" }}
+          readinessProbe:
+            {{- include "microservice.probe" . | nindent 12 }}
+            initialDelaySeconds: {{ .Values.probe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probe.periodSeconds }}
+          livenessProbe:
+            {{- include "microservice.probe" . | nindent 12 }}
+            initialDelaySeconds: {{ .Values.probe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probe.periodSeconds }}
+          {{- end }}
+  strategy:
+    canary:
+      {{- if .Values.canary.trafficRouting.enabled }}
+      canaryService: {{ .Release.Name }}-canary
+      stableService: {{ .Release.Name }}
+      trafficRouting:
+        nginx:
+          stableIngress: {{ .Release.Name }}
+      {{- end }}
+      steps:
+        {{- toYaml .Values.canary.steps | nindent 8 }}
+{{- end }}

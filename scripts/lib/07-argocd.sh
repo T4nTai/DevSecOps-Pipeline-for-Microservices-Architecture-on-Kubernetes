@@ -126,10 +126,14 @@ log_info "  URL:      http://$LB_ENDPOINT/argocd"
 log_info "  Username: admin"
 log_info "  Password: ${ARGOCD_PASSWORD:-(see vault/SSM: argocd-admin-password)}"
 
-# ── Apply Online Boutique ApplicationSet ─────────────────────────────────────
+# ── Apply Online Boutique ApplicationSets (dev + prod) ───────────────────────
+# dev-appset  watches: develop branch → namespace boutique-dev
+# prod-appset watches: main branch    → namespace boutique-prod
 echo ""
-log_info "Applying Online Boutique ApplicationSet..."
-envsubst < "$BASE_DIR/k8s/argocd/apps/online-boutique-appset.yaml" | kubectl apply -f -
-log_ok "ApplicationSet applied"
+log_info "Applying Online Boutique ApplicationSets..."
+envsubst < "$BASE_DIR/k8s/argocd/apps/online-boutique-dev-appset.yaml"  | kubectl apply -f -
+log_ok "Dev ApplicationSet applied  (develop → boutique-dev)"
+envsubst < "$BASE_DIR/k8s/argocd/apps/online-boutique-prod-appset.yaml" | kubectl apply -f -
+log_ok "Prod ApplicationSet applied (main → boutique-prod)"
 
 log_success "STEP 07"

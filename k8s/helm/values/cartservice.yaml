@@ -1,0 +1,24 @@
+image:
+  repository: gcr.io/google-samples/microservices-demo/cartservice
+  tag: "v0.10.1"
+
+port:
+  container: 7070
+  service: 7070
+
+probe:
+  type: grpc
+  initialDelaySeconds: 15
+  periodSeconds: 10
+
+resources:
+  requests:
+    cpu: "200m"
+    memory: "64Mi"
+  limits:
+    cpu: "300m"
+    memory: "128Mi"
+
+env:
+  - name: REDIS_ADDR
+    value: "redis-cart:6379"
