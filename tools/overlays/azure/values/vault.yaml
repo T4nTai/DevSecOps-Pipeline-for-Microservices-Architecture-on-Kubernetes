@@ -1,0 +1,37 @@
+# Vault Azure overlay values
+# Configures Azure Key Vault auto-unseal.
+#
+# Tenant ID and Key Vault name are passed as environment variables, injected by
+# helmfile set: directives from --state-values-file at apply time:
+#   azureTenantId:       <azure-tenant-id>
+#   azureKeyVaultName:   <azure-key-vault-name>
+#
+# The HCL config reads them via env() — no dynamic templating needed here.
+
+server:
+  extraEnvironmentVars:
+    VAULT_SEAL_TYPE: azurekeyvault
+    # AZURE_TENANT_ID and AZURE_KEY_VAULT_NAME are set via helmfile set:
+    AZURE_TENANT_ID: ""
+    AZURE_KEY_VAULT_NAME: ""
+
+  ha:
+    enabled: false   # set true in prod via tools/envs/prod/values.yaml
+
+  config: |
+    ui = true
+
+    listener "tcp" {
+      tls_disable = 1
+      address     = "[::]:8200"
+    }
+
+    storage "file" {
+      path = "/vault/data"
+    }
+
+    seal "azurekeyvault" {
+      tenant_id  = env("AZURE_TENANT_ID")
+      vault_name = env("AZURE_KEY_VAULT_NAME")
+      key_name   = "vault-unseal"
+    }

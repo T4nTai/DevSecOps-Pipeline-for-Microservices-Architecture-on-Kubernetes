@@ -1,0 +1,69 @@
+image:
+  repository: library/frontend
+  tag: "latest"
+  pullSecret: harbor-credentials
+  harborImage: true
+
+replicas: 2
+
+port:
+  container: 8080
+  service: 80           # external port differs from container port
+
+probe:
+  type: http
+  path: /_healthz
+  initialDelaySeconds: 10
+  periodSeconds: 10
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "64Mi"
+  limits:
+    cpu: "200m"
+    memory: "128Mi"
+
+env:
+  - name: PORT
+    value: "8080"
+  - name: PRODUCT_CATALOG_SERVICE_ADDR
+    value: "productcatalogservice:3550"
+  - name: CURRENCY_SERVICE_ADDR
+    value: "currencyservice:7000"
+  - name: CART_SERVICE_ADDR
+    value: "cartservice:7070"
+  - name: RECOMMENDATION_SERVICE_ADDR
+    value: "recommendationservice:8080"
+  - name: SHIPPING_SERVICE_ADDR
+    value: "shippingservice:50051"
+  - name: CHECKOUT_SERVICE_ADDR
+    value: "checkoutservice:5050"
+  - name: AD_SERVICE_ADDR
+    value: "adservice:9555"
+  - name: SHOPPING_ASSISTANT_SERVICE_ADDR
+    value: "shoppingassistantservice:80"
+  - name: CYMBAL_BRANDING
+    value: "false"
+  - name: ENABLE_PROFILER
+    value: "0"
+
+canary:
+  enabled: true
+  trafficRouting:
+    enabled: true       # uses nginx ingress for traffic splitting
+  steps:
+    - setWeight: 20
+    - pause: {}
+    - setWeight: 50
+    - pause:
+        duration: 10m
+    - setWeight: 80
+    - pause:
+        duration: 5m
+
+ingress:
+  enabled: true
+  host: ""   # injected via AppSet helm.values at deploy time
+  className: nginx
+  tls: false

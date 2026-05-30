@@ -1,0 +1,78 @@
+# Applied by: envsubst < k8s/argocd/apps/online-boutique-dev-appset.yaml | kubectl apply -f -
+# Watches: develop branch
+# Deploys to: namespace boutique-dev
+# Image tags: dev-N  (pushed by Jenkins on merge to develop)
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: online-boutique-dev
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  generators:
+    - list:
+        elements:
+          - service: adservice
+            ingressHost: ""
+          - service: cartservice
+            ingressHost: ""
+          - service: checkoutservice
+            ingressHost: ""
+          - service: currencyservice
+            ingressHost: ""
+          - service: emailservice
+            ingressHost: ""
+          - service: frontend
+            ingressHost: "app-dev.${DOMAIN}"
+          - service: loadgenerator
+            ingressHost: ""
+          - service: paymentservice
+            ingressHost: ""
+          - service: productcatalogservice
+            ingressHost: ""
+          - service: recommendationservice
+            ingressHost: ""
+          - service: redis-cart
+            ingressHost: ""
+          - service: shippingservice
+            ingressHost: ""
+
+  template:
+    metadata:
+      name: 'dev-{{service}}'
+    spec:
+      project: default
+
+      source:
+        repoURL: https://github.com/T4nTai/DevSecOps-Pipeline-for-Microservices-Architecture-on-Kubernetes.git
+        targetRevision: develop
+        path: k8s/helm/microservice
+        helm:
+          releaseName: '{{service}}'
+          valueFiles:
+            - ../values/{{service}}.yaml
+          values: |
+            global:
+              harborRegistry: harbor.${DOMAIN}
+            ingress:
+              host: '{{ingressHost}}'
+
+      destination:
+        name: in-cluster
+        namespace: boutique-dev
+
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+
+  templatePatch: |
+    spec:
+      ignoreDifferences:
+        - group: argoproj.io
+          kind: Rollout
+          jsonPointers:
+            - /spec/replicas

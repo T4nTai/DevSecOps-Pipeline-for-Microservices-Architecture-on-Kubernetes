@@ -1,10 +1,15 @@
+variable "zone_id" {
+  type        = string
+  description = "Route53 hosted zone ID — passed in from the DNS state via terraform_remote_state"
+}
+
 variable "domain_name" {
   type        = string
-  description = "Domain name for the hosted zone (e.g. tools.votantai.me)"
+  description = "Domain name managed by the zone (e.g. tools.example.com)"
 
   validation {
     condition     = length(var.domain_name) > 0
-    error_message = "domain_name cannot be empty. Set it in terraform.tfvars (e.g. domain_name = \"tools.example.com\")."
+    error_message = "domain_name cannot be empty."
   }
 
   validation {
@@ -15,16 +20,10 @@ variable "domain_name" {
 
 variable "nlb_dns_name" {
   type        = string
-  description = "DNS name of the ingress NLB (used for ALIAS and CNAME records)"
+  description = "DNS name of the ingress NLB (target for ALIAS records)"
 }
 
 variable "nlb_zone_id" {
   type        = string
-  description = "AWS-managed hosted zone ID of the NLB (used for Route53 ALIAS records)"
-}
-
-variable "tags" {
-  type        = map(string)
-  default     = {}
-  description = "Tags to apply to all resources"
+  description = "AWS-managed hosted zone ID of the NLB (required for Route53 ALIAS)"
 }

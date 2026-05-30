@@ -1,0 +1,20 @@
+image:
+  repository: redis
+  tag: "alpine"
+
+port:
+  container: 6379
+  service: 6379
+
+probe:
+  type: tcp             # redis uses TCP socket probe
+  initialDelaySeconds: 5
+  periodSeconds: 5
+
+resources:
+  requests:
+    cpu: "70m"
+    memory: "200Mi"
+  limits:
+    cpu: "125m"
+    memory: "256Mi"

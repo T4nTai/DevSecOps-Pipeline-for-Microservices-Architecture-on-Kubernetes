@@ -1,0 +1,15 @@
+# tools/envs/dev/helmfile.yaml
+#
+# Dev environment overrides: smaller replicas, Let's Encrypt staging, relaxed limits.
+# This file defines env-level values only — it does NOT list releases.
+# The overlay (aws or azure) is the entry point that imports base + these values.
+#
+# Usage:
+#   helmfile -f tools/overlays/aws/helmfile.yaml \
+#            --state-values-file tools/envs/dev/values.yaml \
+#            -e dev sync
+
+environments:
+  dev:
+    values:
+      - values.yaml

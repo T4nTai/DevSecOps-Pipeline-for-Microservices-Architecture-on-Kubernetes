@@ -27,10 +27,6 @@ apiVersion: v1
 kind: Pod
 spec:
   serviceAccountName: jenkins
-  hostAliases:
-    - ip: "10.105.193.96"
-      hostnames:
-        - "harbor.tools.votantai.me"
   containers:
     - name: builder
       image: ${builderImage(language)}
@@ -45,7 +41,7 @@ spec:
           memory: "1Gi"${builderEnv(language)}
 
     - name: sonar-scanner
-      image: sonarsource/sonar-scanner-cli:latest
+      image: sonarsource/sonar-scanner-cli:5.0.1
       imagePullPolicy: IfNotPresent
       command: ["sleep", "infinity"]
       resources:
@@ -57,7 +53,7 @@ spec:
           memory: "512Mi"
 
     - name: checkov
-      image: bridgecrew/checkov:latest
+      image: bridgecrew/checkov:3.2.0
       imagePullPolicy: IfNotPresent
       command: ["sleep", "infinity"]
       resources:

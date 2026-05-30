@@ -33,21 +33,26 @@ kubectl wait --for=condition=ready pod -l k8s-app=kube-dns \
 
 kubectl create namespace jenkins 2>/dev/null || true
 
-# Apply scoped RBAC (not cluster-admin)
+# Apply scoped RBAC (not cluster-admin) — k8s manifest, stays in k8s/
 kubectl apply -f "$BASE_DIR/k8s/jenkins/rbac.yaml"
 
-# Render values — inject password and domain
-sed \
-  -e "s|JENKINS_ADMIN_PASSWORD_PLACEHOLDER|${JENKINS_ADMIN_PASSWORD}|g" \
-  -e "s|DOMAIN_PLACEHOLDER|${DOMAIN}|g" \
-  "$BASE_DIR/k8s/jenkins/values.yaml" > /tmp/jenkins-values-rendered.yaml
+# Values: base + cloud storageClass overlay + password/domain
+STORAGE_OVERLAY="$BASE_DIR/tools/overlays/${CLOUD}/values/storage.yaml"
+
+_jenkins_flags=(
+  -f "$BASE_DIR/tools/base/values/jenkins.yaml"
+)
+[ -f "$STORAGE_OVERLAY" ] && _jenkins_flags+=(-f "$STORAGE_OVERLAY")
+_jenkins_flags+=(
+  --set "controller.adminPassword=${JENKINS_ADMIN_PASSWORD}"
+  --set "controller.jenkinsUrl=https://jenkins.${DOMAIN}"
+)
 
 helm upgrade --install jenkins jenkins/jenkins \
   -n jenkins \
-  -f /tmp/jenkins-values-rendered.yaml \
+  "${_jenkins_flags[@]}" \
   --timeout 10m --wait
 
-rm -f /tmp/jenkins-values-rendered.yaml
 log_ok "Jenkins deployed/upgraded"
 
 # ── Harbor credentials secret (dùng cho Kaniko build image) ──────────────────
@@ -64,7 +69,7 @@ else
 fi
 
 # ── Ingress ───────────────────────────────────────────────────────────────────
-envsubst < "$BASE_DIR/k8s/jenkins/ingress.yaml" | kubectl apply -f -
+envsubst < "$BASE_DIR/tools/ingresses/jenkins.yaml" | kubectl apply -f -
 log_ok "Jenkins ingress applied"
 
 # ── Verify ────────────────────────────────────────────────────────────────────

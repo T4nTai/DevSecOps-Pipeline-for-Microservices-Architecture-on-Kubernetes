@@ -1,0 +1,36 @@
+# Vault AWS overlay values
+# Configures AWS KMS auto-unseal on stateful nodes.
+#
+# KMS key ARN and region are passed as environment variables, injected by
+# helmfile set: directives from --state-values-file at apply time:
+#   vaultKmsKeyArn: arn:aws:kms:REGION:ACCOUNT_ID:key/KEY_ID
+#   awsRegion:      ap-southeast-1
+#
+# The HCL config reads them via env() — no dynamic templating needed here.
+
+server:
+  extraEnvironmentVars:
+    VAULT_SEAL_TYPE: awskms
+    # AWS_REGION and VAULT_AWSKMS_SEAL_KEY_ID are set via helmfile set:
+    AWS_REGION: ""
+    VAULT_AWSKMS_SEAL_KEY_ID: ""
+
+  ha:
+    enabled: false   # set true in prod via tools/envs/prod/values.yaml
+
+  config: |
+    ui = true
+
+    listener "tcp" {
+      tls_disable = 1
+      address     = "[::]:8200"
+    }
+
+    storage "file" {
+      path = "/vault/data"
+    }
+
+    seal "awskms" {
+      region     = env("AWS_REGION")
+      kms_key_id = env("VAULT_AWSKMS_SEAL_KEY_ID")
+    }

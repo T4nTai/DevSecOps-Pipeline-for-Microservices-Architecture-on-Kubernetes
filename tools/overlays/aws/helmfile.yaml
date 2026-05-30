@@ -1,0 +1,99 @@
+# tools/overlays/aws/helmfile.yaml — AWS entry point
+#
+# Apply dev:  helmfile -f tools/overlays/aws/helmfile.yaml \
+#                      --state-values-file tools/envs/dev/values.yaml sync
+# Apply prod: helmfile -f tools/overlays/aws/helmfile.yaml \
+#                      --state-values-file tools/envs/prod/values.yaml sync
+#
+# State values required (tools/envs/{dev,prod}/values.yaml):
+#   certManagerIrsaRoleArn: arn:aws:iam::ACCOUNT_ID:role/cert-manager-irsa
+#   vaultKmsKeyArn:         arn:aws:kms:REGION:ACCOUNT_ID:key/KEY_ID
+#   awsRegion:              ap-southeast-1
+#   domain:                 example.com
+#   grafanaAdminPassword:   changeme
+#   harborAdminPassword:    changeme
+
+bases:
+  - ../../base/helmfile.yaml
+
+releases:
+
+  # ── ingress-nginx: AWS NLB annotations ───────────────────────────────────────
+  - name: ingress-nginx
+    namespace: ingress-nginx
+    chart: ingress-nginx/ingress-nginx
+    version: "4.10.1"
+    values:
+      - ../../base/values/ingress-nginx.yaml
+      - values/ingress-nginx.yaml   # LoadBalancer + NLB annotations
+
+  # ── cert-manager: IRSA annotation ────────────────────────────────────────────
+  # certManagerIrsaRoleArn is read from --state-values-file at apply time.
+  - name: cert-manager
+    namespace: cert-manager
+    chart: jetstack/cert-manager
+    version: "v1.14.5"
+    values:
+      - ../../base/values/cert-manager.yaml
+      - values/cert-manager.yaml
+    set:
+      - name: serviceAccount.annotations.eks\.amazonaws\.com/role-arn
+        value: {{ .StateValues.certManagerIrsaRoleArn | default "" | quote }}
+
+  # ── Vault: AWS KMS auto-unseal ────────────────────────────────────────────────
+  # vaultKmsKeyArn and awsRegion are injected as env vars; HCL config reads them
+  # via env() so the values/vault.yaml stays plain static YAML.
+  - name: vault
+    namespace: vault
+    chart: hashicorp/vault
+    version: "0.28.0"
+    values:
+      - ../../base/values/vault.yaml
+      - values/storage.yaml         # storageClass: ebs-sc
+      - values/vault.yaml           # KMS seal stanza (uses env vars)
+    set:
+      - name: server.extraEnvironmentVars.AWS_REGION
+        value: {{ .StateValues.awsRegion | default "ap-southeast-1" | quote }}
+      - name: server.extraEnvironmentVars.VAULT_AWSKMS_SEAL_KEY_ID
+        value: {{ .StateValues.vaultKmsKeyArn | default "" | quote }}
+
+  # ── Releases that only need storageClass overridden ───────────────────────────
+  - name: jenkins
+    namespace: jenkins
+    chart: jenkins/jenkins
+    version: "5.1.5"
+    values:
+      - ../../base/values/jenkins.yaml
+      - values/storage.yaml
+
+  - name: prometheus
+    namespace: monitoring
+    chart: prometheus-community/kube-prometheus-stack
+    version: "58.5.3"
+    values:
+      - ../../base/values/monitoring.yaml
+      - values/storage.yaml
+
+  - name: loki
+    namespace: monitoring
+    chart: grafana/loki
+    version: "6.6.2"
+    values:
+      - ../../base/values/loki.yaml
+      - values/storage.yaml
+
+  - name: sonarqube
+    namespace: sonarqube
+    chart: sonarqube/sonarqube
+    version: "10.5.1+2816"
+    values:
+      - ../../base/values/sonarqube.yaml
+      - values/storage.yaml
+
+  - name: harbor
+    namespace: harbor
+    chart: harbor/harbor
+    version: "1.14.2"
+    values:
+      - ../../base/values/harbor.yaml
+      - values/storage.yaml

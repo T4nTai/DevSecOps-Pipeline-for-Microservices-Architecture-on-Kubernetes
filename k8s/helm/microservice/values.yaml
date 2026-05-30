@@ -1,0 +1,60 @@
+namespace: default
+
+global:
+  harborRegistry: ""   # injected by AppSet at deploy time
+
+image:
+  repository: ""
+  tag: "latest"
+  pullPolicy: IfNotPresent
+  pullSecret: ""        # empty = no imagePullSecrets
+  harborImage: false    # true = prepend global.harborRegistry
+
+replicas: 1
+
+port:
+  container: 8080
+  service: 8080         # can differ from container (e.g. frontend: 80 -> 8080)
+
+probe:
+  type: grpc            # grpc | http | tcp | none
+  path: /_healthz       # only used when type=http
+  initialDelaySeconds: 10
+  periodSeconds: 10
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "64Mi"
+  limits:
+    cpu: "200m"
+    memory: "128Mi"
+
+env: []
+
+service:
+  enabled: true
+  type: ClusterIP
+
+initContainers: []
+
+canary:
+  enabled: false
+  trafficRouting:
+    enabled: false      # enable nginx-based traffic splitting
+  steps:
+    - setWeight: 20
+    - pause: {}
+    - setWeight: 50
+    - pause:
+        duration: 10m
+    - setWeight: 80
+    - pause:
+        duration: 5m
+
+ingress:
+  enabled: false
+  host: ""
+  className: nginx
+  tls: false
+  certSecret: ""

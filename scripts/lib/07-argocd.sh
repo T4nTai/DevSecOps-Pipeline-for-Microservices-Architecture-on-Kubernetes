@@ -72,12 +72,10 @@ log_info "Deploying ArgoCD..."
 
 if _argocd_healthy; then
   log_info "ArgoCD already running — upgrading config..."
-  sed \
-    -e "s|DOMAIN_PLACEHOLDER|${DOMAIN}|g" \
-    "$BASE_DIR/k8s/argocd/values.yaml" > /tmp/argocd-values-rendered.yaml
   helm upgrade argocd argo/argo-cd \
     --version "$ARGOCD_CHART_VERSION" -n argocd \
-    -f /tmp/argocd-values-rendered.yaml --timeout 5m --wait
+    -f "$BASE_DIR/tools/base/values/argocd.yaml" \
+    --timeout 5m --wait
   kubectl rollout restart deployment/argocd-server -n argocd
   kubectl rollout status deployment/argocd-server -n argocd --timeout=60s
 elif kubectl get namespace argocd >/dev/null 2>&1; then
@@ -94,12 +92,10 @@ if ! _argocd_healthy; then
   ARGOCD_INSTALLED=false
   for attempt in $(seq 1 3); do
     log_info "Attempt $attempt/3..."
-    sed \
-      -e "s|DOMAIN_PLACEHOLDER|${DOMAIN}|g" \
-      "$BASE_DIR/k8s/argocd/values.yaml" > /tmp/argocd-values-rendered.yaml
     if helm upgrade --install argocd argo/argo-cd \
       --version "$ARGOCD_CHART_VERSION" -n argocd --create-namespace \
-      -f /tmp/argocd-values-rendered.yaml --timeout 15m --wait; then
+      -f "$BASE_DIR/tools/base/values/argocd.yaml" \
+      --timeout 15m --wait; then
       sleep 15
       if _argocd_healthy; then
         log_ok "ArgoCD deployed"
@@ -113,9 +109,8 @@ if ! _argocd_healthy; then
   done
   [ "$ARGOCD_INSTALLED" = false ] && { log_error "ArgoCD install failed after 3 attempts"; exit 1; }
 fi
-rm -f /tmp/argocd-values-rendered.yaml
 
-envsubst < "$BASE_DIR/k8s/argocd/ingress.yaml" | kubectl apply -f -
+envsubst < "$BASE_DIR/tools/ingresses/argocd.yaml" | kubectl apply -f -
 log_ok "ArgoCD Ingress applied"
 
 ARGOCD_PASSWORD=$(kubectl -n argocd get secret argocd-initial-admin-secret \
@@ -131,13 +126,14 @@ log_info "  URL:      http://$LB_ENDPOINT/argocd"
 log_info "  Username: admin"
 log_info "  Password: ${ARGOCD_PASSWORD:-(see vault/SSM: argocd-admin-password)}"
 
-# ── Apply Online Boutique ApplicationSet ─────────────────────────────────────
+# ── Apply Online Boutique ApplicationSets (dev + prod) ───────────────────────
+# dev-appset  watches: develop branch → namespace boutique-dev
+# prod-appset watches: main branch    → namespace boutique-prod
 echo ""
-log_info "Applying Online Boutique ApplicationSet..."
-sed \
-  -e "s|DOMAIN_PLACEHOLDER|${DOMAIN}|g" \
-  -e "s|HARBOR_REGISTRY_PLACEHOLDER|harbor.${DOMAIN}|g" \
-  "$BASE_DIR/k8s/argocd/apps/online-boutique-appset.yaml" | kubectl apply -f -
-log_ok "ApplicationSet applied"
+log_info "Applying Online Boutique ApplicationSets..."
+envsubst < "$BASE_DIR/k8s/argocd/apps/online-boutique-dev-appset.yaml"  | kubectl apply -f -
+log_ok "Dev ApplicationSet applied  (develop → boutique-dev)"
+envsubst < "$BASE_DIR/k8s/argocd/apps/online-boutique-prod-appset.yaml" | kubectl apply -f -
+log_ok "Prod ApplicationSet applied (main → boutique-prod)"
 
 log_success "STEP 07"

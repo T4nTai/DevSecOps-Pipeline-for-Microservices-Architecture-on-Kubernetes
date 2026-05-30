@@ -20,29 +20,51 @@ if [ -z "${GRAFANA_ADMIN_PASSWORD:-}" ]; then
 fi
 log_ok "Grafana password resolved"
 
-# ── Add Helm repo ─────────────────────────────────────────────────────────────
+# ── Add Helm repos ────────────────────────────────────────────────────────────
 echo ""
 helm repo add prometheus-community \
   https://prometheus-community.github.io/helm-charts 2>/dev/null || true
 helm repo add grafana https://grafana.github.io/helm-charts 2>/dev/null || true
 helm repo update 2>/dev/null || true
 
-# ── Render values (inject password) ──────────────────────────────────────────
-sed \
-  -e "s|GRAFANA_ADMIN_PASSWORD_PLACEHOLDER|${GRAFANA_ADMIN_PASSWORD}|g" \
-  -e "s|DOMAIN_PLACEHOLDER|${DOMAIN}|g" \
-  "$BASE_DIR/k8s/monitoring/values.yaml" > /tmp/monitoring-values-rendered.yaml
+# ── Values: base + cloud overlay (storageClass) + domain/password ─────────────
+BASE_VALUES="$BASE_DIR/tools/base/values/monitoring.yaml"
+OVERLAY_VALUES="$BASE_DIR/tools/overlays/${CLOUD}/values/storage.yaml"
 
-# ── Install / Upgrade ─────────────────────────────────────────────────────────
+# Domain + password injected via temp file (nested keys don't work well with --set)
+cat > /tmp/grafana-domain.yaml <<GVALS
+grafana:
+  adminPassword: "${GRAFANA_ADMIN_PASSWORD}"
+  ingress:
+    hosts:
+      - "grafana.${DOMAIN}"
+    tls:
+      - hosts:
+          - "grafana.${DOMAIN}"
+        secretName: tools-wildcard-tls
+  grafana.ini:
+    server:
+      root_url: "https://grafana.${DOMAIN}"
+GVALS
+
+_monitoring_flags() {
+  local flags=(-f "$BASE_VALUES")
+  [ -f "$OVERLAY_VALUES" ] && flags+=(-f "$OVERLAY_VALUES")
+  flags+=(-f /tmp/grafana-domain.yaml)
+  echo "${flags[@]}"
+}
+
+# ── Install / Upgrade kube-prometheus-stack ───────────────────────────────────
 echo ""
 MONITORING_STATUS=$(kubectl get deployment prometheus-grafana \
   -n monitoring --no-headers 2>/dev/null | awk '{print $2}' || echo "0/0")
 
 if [ "$MONITORING_STATUS" = "1/1" ]; then
   log_info "Upgrading Prometheus + Grafana config..."
+  # shellcheck disable=SC2046
   helm upgrade prometheus prometheus-community/kube-prometheus-stack \
     -n monitoring \
-    -f /tmp/monitoring-values-rendered.yaml \
+    $(_monitoring_flags) \
     --timeout 10m --wait 2>/dev/null || true
   kubectl rollout restart deployment/prometheus-grafana -n monitoring
   kubectl rollout status deployment/prometheus-grafana -n monitoring --timeout=60s
@@ -50,16 +72,17 @@ else
   kubectl wait --for=condition=ready pod -l k8s-app=kube-dns \
     -n kube-system --timeout=120s 2>/dev/null || true
 
+  # shellcheck disable=SC2046
   helm upgrade --install prometheus prometheus-community/kube-prometheus-stack \
     -n monitoring --create-namespace \
-    -f /tmp/monitoring-values-rendered.yaml \
+    $(_monitoring_flags) \
     --timeout 10m --wait
   log_ok "Prometheus + Grafana deployed"
 fi
 
-rm -f /tmp/monitoring-values-rendered.yaml
+rm -f /tmp/grafana-domain.yaml
 
-# ── Install Loki + Promtail ───────────────────────────────────────────────────
+# ── Install Loki ──────────────────────────────────────────────────────────────
 echo ""
 log_info "Deploying Loki..."
 LOKI_STATUS=$(kubectl get statefulset loki -n monitoring \
@@ -67,13 +90,16 @@ LOKI_STATUS=$(kubectl get statefulset loki -n monitoring \
 if [ "$LOKI_STATUS" = "1/1" ]; then
   log_skip "Loki already running"
 else
+  _loki_flags=(-f "$BASE_DIR/tools/base/values/loki.yaml")
+  [ -f "$OVERLAY_VALUES" ] && _loki_flags+=(-f "$OVERLAY_VALUES")
   helm upgrade --install loki grafana/loki \
     -n monitoring --create-namespace \
-    -f "$BASE_DIR/k8s/monitoring/loki-values.yaml" \
+    "${_loki_flags[@]}" \
     --timeout 5m --wait
   log_ok "Loki deployed"
 fi
 
+# ── Install Promtail ──────────────────────────────────────────────────────────
 echo ""
 log_info "Deploying Promtail..."
 PROMTAIL_STATUS=$(kubectl get daemonset promtail -n monitoring \
@@ -83,7 +109,7 @@ if [ "${PROMTAIL_STATUS:-0}" -gt "0" ]; then
 else
   helm upgrade --install promtail grafana/promtail \
     -n monitoring --create-namespace \
-    -f "$BASE_DIR/k8s/monitoring/promtail-values.yaml" \
+    -f "$BASE_DIR/tools/base/values/promtail.yaml" \
     --timeout 3m --wait
   log_ok "Promtail deployed"
 fi

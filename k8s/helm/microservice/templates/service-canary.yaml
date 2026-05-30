@@ -1,0 +1,14 @@
+{{- if and .Values.canary.enabled .Values.canary.trafficRouting.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-canary
+  namespace: {{ .Values.namespace }}
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    app: {{ .Release.Name }}
+  ports:
+    - port: {{ .Values.port.service }}
+      targetPort: {{ .Values.port.container }}
+{{- end }}

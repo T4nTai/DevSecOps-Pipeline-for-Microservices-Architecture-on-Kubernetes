@@ -5,6 +5,12 @@
 
 set -euo pipefail
 
+# Load DOMAIN from .env if not already set
+SCRIPT_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+if [ -z "${DOMAIN:-}" ] && [ -f "$SCRIPT_ROOT/.env" ]; then
+  set -a; source "$SCRIPT_ROOT/.env"; set +a
+fi
+
 VAULT_NS="vault"
 VAULT_POD="vault-0"
 UNSEAL_FILE="$HOME/.vault-unseal-keys"
@@ -62,7 +68,7 @@ echo "==> Storing secrets..."
 # Prompt for secrets not yet known
 read -rp "  GitHub username: " GIT_USER
 read -rsp "  GitHub token: " GIT_TOKEN; echo ""
-read -rsp "  SonarQube token (generate at https://sonarqube.tools.votantai.me): " SONAR_TOKEN; echo ""
+read -rsp "  SonarQube token (generate at https://sonarqube.${DOMAIN:-tools.votantai.me}): " SONAR_TOKEN; echo ""
 read -rsp "  Harbor admin password: " HARBOR_PASSWORD; echo ""
 
 kubectl exec "$VAULT_POD" -n "$VAULT_NS" -- \
@@ -74,12 +80,12 @@ kubectl exec "$VAULT_POD" -n "$VAULT_NS" -- \
   vault kv put secret/harbor \
     username="admin" \
     password="$HARBOR_PASSWORD" \
-    registry="harbor.tools.votantai.me"
+    registry="harbor.${DOMAIN:-tools.votantai.me}"
 
 kubectl exec "$VAULT_POD" -n "$VAULT_NS" -- \
   vault kv put secret/sonarqube \
     token="$SONAR_TOKEN" \
-    url="https://sonarqube.tools.votantai.me"
+    url="https://sonarqube.${DOMAIN:-tools.votantai.me}"
 
 kubectl exec "$VAULT_POD" -n "$VAULT_NS" -- \
   vault kv put secret/sonarqube-db \
@@ -136,6 +142,6 @@ echo "   ID:   vault-approle"
 echo "   Role ID:   $ROLE_ID"
 echo "   Secret ID: $SECRET_ID"
 echo ""
-echo " Vault UI:    https://vault.tools.votantai.me"
+echo " Vault UI:    https://vault.${DOMAIN:-tools.votantai.me}"
 echo " Credentials: $UNSEAL_FILE"
 echo "============================================================"

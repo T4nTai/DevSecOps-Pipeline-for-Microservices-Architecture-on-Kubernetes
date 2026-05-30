@@ -1,0 +1,18 @@
+image:
+  repository: gcr.io/google-samples/microservices-demo/currencyservice
+  tag: "v0.10.1"
+
+port:
+  container: 7000
+  service: 7000
+
+probe:
+  type: grpc
+  initialDelaySeconds: 10
+  periodSeconds: 10
+
+env:
+  - name: PORT
+    value: "7000"
+  - name: DISABLE_PROFILER
+    value: "1"

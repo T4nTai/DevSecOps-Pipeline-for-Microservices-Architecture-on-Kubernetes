@@ -26,6 +26,11 @@ done
 export CLOUD="${CLOUD:-aws}"
 export CLUSTER="${CLUSTER:-tools}"
 
+# ── Load .env for DOMAIN and other config ────────────────────────────────────
+_ENV_FILE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/.env"
+[ -f "$_ENV_FILE" ] && { set -a; source "$_ENV_FILE"; set +a; }
+unset _ENV_FILE
+
 # ── Per-cloud SSH defaults ────────────────────────────────────────────────────
 if [[ "$CLOUD" == "azure" ]]; then
   SSH_USER="${SSH_USER:-azureuser}"
@@ -151,10 +156,27 @@ echo ""
 echo "kubectl tunnel open (PID ${SSH_PID:-unknown})"
 echo ""
 echo "  kubectl  → ready  (127.0.0.1:${LOCAL_K8S_PORT})"
+
+# ── Auto-cleanup Unknown pods (caused by worker node shutdowns) ───────────────
+UNKNOWN_PODS=$(kubectl get pods --all-namespaces --field-selector=status.phase=Unknown \
+  --no-headers 2>/dev/null | wc -l || echo 0)
+
+if [[ "$UNKNOWN_PODS" -gt 0 ]]; then
+  echo ""
+  echo "  Detected ${UNKNOWN_PODS} Unknown pod(s) — cleaning up..."
+  kubectl get pods --all-namespaces --field-selector=status.phase=Unknown --no-headers 2>/dev/null \
+    | awk '{print $1, $2}' \
+    | while read ns pod; do
+        kubectl delete pod "$pod" -n "$ns" --force --grace-period=0 2>/dev/null && \
+          echo "    Deleted: $pod ($ns)" || true
+      done
+  echo "  Done. Pods will reschedule automatically."
+fi
+
 echo ""
 echo "  Services (accessible directly via browser):"
-echo "    Jenkins    https://jenkins.${CLUSTER}.votantai.me"
-echo "    ArgoCD     https://argocd.${CLUSTER}.votantai.me"
-echo "    Grafana    https://grafana.${CLUSTER}.votantai.me"
+echo "    Jenkins    https://jenkins.${DOMAIN:-${CLUSTER}.votantai.me}"
+echo "    ArgoCD     https://argocd.${DOMAIN:-${CLUSTER}.votantai.me}"
+echo "    Grafana    https://grafana.${DOMAIN:-${CLUSTER}.votantai.me}"
 echo ""
 echo "Run './connect.sh --cloud=$CLOUD --cluster=$CLUSTER stop' to close tunnel."
