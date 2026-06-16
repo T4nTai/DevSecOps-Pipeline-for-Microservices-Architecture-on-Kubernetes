@@ -57,6 +57,36 @@ resource "aws_iam_role_policy_attachment" "base_cluster_autoscaler" {
   policy_arn = aws_iam_policy.cluster_autoscaler.arn
 }
 
+# cert-manager Route53 DNS-01 — on ALL nodes because cert-manager can be
+# scheduled on any node. ChangeResourceRecordSets is scoped to hostedzone/*.
+resource "aws_iam_role_policy" "base_cert_manager_route53" {
+  name = "${var.cluster_name}-base-cert-manager-route53"
+  role = aws_iam_role.base.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "route53:GetChange",
+          "route53:ChangeResourceRecordSets",
+          "route53:ListResourceRecordSets"
+        ]
+        Resource = [
+          "arn:aws:route53:::change/*",
+          "arn:aws:route53:::hostedzone/*"
+        ]
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["route53:ListHostedZones", "route53:ListHostedZonesByName"]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
 resource "aws_iam_instance_profile" "base" {
   name = "${var.cluster_name}-base-node-profile"
   role = aws_iam_role.base.name

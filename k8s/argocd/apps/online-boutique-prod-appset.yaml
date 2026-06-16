@@ -13,29 +13,13 @@ spec:
   generators:
     - list:
         elements:
-          - service: adservice
+          - service: frontend
+            ingressHost: "app.${DOMAIN}"
+          - service: productcatalogservice
             ingressHost: ""
           - service: cartservice
             ingressHost: ""
-          - service: checkoutservice
-            ingressHost: ""
-          - service: currencyservice
-            ingressHost: ""
-          - service: emailservice
-            ingressHost: ""
-          - service: frontend
-            ingressHost: "app.${DOMAIN}"
-          - service: loadgenerator
-            ingressHost: ""
-          - service: paymentservice
-            ingressHost: ""
-          - service: productcatalogservice
-            ingressHost: ""
-          - service: recommendationservice
-            ingressHost: ""
           - service: redis-cart
-            ingressHost: ""
-          - service: shippingservice
             ingressHost: ""
 
   template:

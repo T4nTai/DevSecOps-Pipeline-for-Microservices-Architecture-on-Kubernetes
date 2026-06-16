@@ -8,9 +8,7 @@ resource "aws_lb" "k8s_api" {
   # if the local AZ node is unhealthy. Note: cross-zone has per-GB cost on NLBs.
   enable_cross_zone_load_balancing = true
 
-  # Prevents accidental terraform destroy of the K8s API entry point.
-  # Run: terraform state rm module.nlb.aws_lb.k8s_api before intentional deletion.
-  enable_deletion_protection = true
+  enable_deletion_protection = false
 
   tags = merge(var.tags, { Name = "${var.cluster_name}-api-nlb" })
 }

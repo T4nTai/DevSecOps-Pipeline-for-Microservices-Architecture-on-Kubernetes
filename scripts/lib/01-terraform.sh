@@ -14,7 +14,7 @@ fi
 check_tools "${_required_tools[@]}"
 check_helm
 
-# ── Locate env dir ────────────────────────────────────────────────────────────
+# -- Locate env dir ------------------------------------------------------------
 if [[ "$CLOUD" == "azure" ]]; then
   ENV_DIR="${ENV_DIR:-${BASE_DIR}/infra/azure/envs/${CLUSTER}}"
 else
@@ -27,7 +27,7 @@ if [ ! -d "$ENV_DIR" ]; then
   exit 1
 fi
 
-# ── SSH key setup ─────────────────────────────────────────────────────────────
+# -- SSH key setup ------------------------------------------------------------─
 if [[ "$CLOUD" == "azure" ]]; then
   SSH_KEY="${SSH_KEY:-/tmp/ssh/id_rsa}"
   SSH_PUB_KEY_PATH="${SSH_PUB_KEY:-/tmp/ssh/id_rsa.pub}"
@@ -53,9 +53,12 @@ export SSH_KEY
 chmod 600 "$SSH_KEY"
 log_ok "SSH_KEY: $SSH_KEY"
 
-# ── Render tfvars if env vars present ────────────────────────────────────────
+# -- Render tfvars if env vars present ----------------------------------------
+# MY_IP (from .env.secret) overrides hardcoded IPs in terraform.tfvars so you
+# never need to edit tfvars manually when your public IP changes.
+
 if [[ "$CLOUD" == "azure" ]]; then
-  if [ -n "${SSH_PUBLIC_KEY:-}" ] || [ -n "${ALLOWED_SSH_IP:-}" ]; then
+  if [ -n "${SSH_PUBLIC_KEY:-}" ] || [ -n "${MY_IP:-}" ]; then
     log_info "Rendering terraform.tfvars from env vars..."
     cat > "$ENV_DIR/terraform.tfvars" <<TFVARS
 project_name         = "${PROJECT_NAME:-devsecops}"
@@ -63,88 +66,46 @@ environment          = "${CLUSTER}"
 location             = "${LOCATION:-koreacentral}"
 ssh_public_key       = "${SSH_PUB_KEY_PATH}"
 ssh_private_key_path = "${SSH_KEY}"
-allowed_ssh_ip       = "${ALLOWED_SSH_IP:-*}"
+allowed_ssh_ip       = "${MY_IP:-*}"
 worker_image_id      = "${WORKER_IMAGE_ID:-}"
 TFVARS
     log_ok "terraform.tfvars rendered"
   fi
+elif [[ "$CLOUD" == "aws" ]] && [ -n "${MY_IP:-}" ]; then
+  log_info "Injecting MY_IP=${MY_IP} into terraform.tfvars..."
+  # Overwrite only the IP lines, keep everything else from existing tfvars
+  # Expand to /24 so IP rotation within the same ISP subnet doesn't lock you out
+  MY_IP_24=$(echo "$MY_IP" | cut -d. -f1-3).0/24
+  sed -i \
+    -e "s|^allowed_ssh_cidr.*|allowed_ssh_cidr    = \"${MY_IP_24}\"|" \
+    -e "s|^allowed_cidr_blocks.*|allowed_cidr_blocks = [\"${MY_IP_24}\"]|" \
+    "$ENV_DIR/terraform.tfvars"
+  log_ok "IP updated: ${MY_IP_24}"
 fi
 
-# ── AWS: apply DNS state FIRST (independent zone lifecycle) ──────────────────
-# The Route53 zone lives in infra/aws/dns/ — a separate Terraform state.
-# It must be applied before the cluster state because the cluster reads
-# zone_id from it via terraform_remote_state.
-#
-# On the very first deploy the zone is created here.
-# On subsequent deploys this is a no-op (zone already exists, no changes).
-# The cluster can be destroyed and rebuilt without touching this state.
-if [[ "$CLOUD" == "aws" ]] && [ -n "${DOMAIN:-}" ]; then
-  DNS_DIR="${BASE_DIR}/infra/aws/dns"
-  DNS_TFVARS="${DNS_DIR}/terraform.tfvars"
 
-  echo ""
-  log_info "── DNS state (infra/aws/dns/) ──"
+# -- Bootstrap: ensure S3 backend exists (AWS only) ---------------------------
+# The S3 bucket + DynamoDB table must exist before tools/ can init with S3 backend.
+# bootstrap/ uses local state intentionally — run once, never destroy.
+if [[ "$CLOUD" == "aws" ]]; then
+  BOOTSTRAP_DIR="${BASE_DIR}/infra/aws/bootstrap"
+  STATE_BUCKET="${STATE_BUCKET:-devsecops-tfstate}"
 
-  # Auto-generate terraform.tfvars for DNS state from env vars
-  if [ ! -f "$DNS_TFVARS" ] || [ -n "${DNS_STATE_BUCKET:-}" ]; then
-    cat > "$DNS_TFVARS" <<DNSVAR
-aws_region  = "${AWS_REGION:-ap-southeast-1}"
-domain_name = "${DOMAIN}"
-tags = {
-  Project   = "${PROJECT_NAME:-devsecops}"
-  ManagedBy = "terraform"
-  Component = "dns"
-}
-DNSVAR
-    log_info "DNS terraform.tfvars written"
+  if ! aws s3 ls "s3://${STATE_BUCKET}" >/dev/null 2>&1; then
+    log_info "S3 state bucket not found — running bootstrap..."
+    cd "$BOOTSTRAP_DIR"
+    terraform init -upgrade=false
+    terraform apply -auto-approve \
+      -var="state_bucket_name=${STATE_BUCKET}" \
+      -var="aws_region=${AWS_DEFAULT_REGION:-ap-southeast-1}" \
+      -var="project_name=${CLUSTER_NAME:-devsecops}"
+    log_ok "Bootstrap complete: s3://${STATE_BUCKET}"
+  else
+    log_skip "S3 state bucket already exists: s3://${STATE_BUCKET}"
   fi
-
-  cd "$DNS_DIR"
-  terraform init -upgrade=false
-
-  # Import existing zone if it's not yet tracked in DNS state
-  EXISTING_ZONE_ID=$(aws route53 list-hosted-zones-by-name \
-    --dns-name "${DOMAIN}." \
-    --query "HostedZones[?Name=='${DOMAIN}.'].Id" \
-    --output text 2>/dev/null \
-    | sed 's|/hostedzone/||' | tr -d '[:space:]' || true)
-
-  if [ -n "$EXISTING_ZONE_ID" ] && [ "$EXISTING_ZONE_ID" != "None" ]; then
-    if terraform state show "aws_route53_zone.this" > /dev/null 2>&1; then
-      log_skip "DNS zone already in state: $EXISTING_ZONE_ID"
-    else
-      log_info "Importing existing zone $EXISTING_ZONE_ID → DNS state..."
-      terraform import "aws_route53_zone.this" "$EXISTING_ZONE_ID" \
-        && log_ok "Zone imported: $EXISTING_ZONE_ID" \
-        || log_warn "Zone import failed — terraform apply will attempt to create"
-    fi
-  fi
-
-  terraform apply -auto-approve -parallelism=5
-  ROUTE53_ZONE_ID=$(terraform output -raw zone_id 2>/dev/null || echo "")
-  ROUTE53_NS=$(terraform output -json name_servers 2>/dev/null \
-    | jq -r '.[]' 2>/dev/null | tr '\n' ',' | sed 's/,$//' || echo "")
-
-  if [ -n "$ROUTE53_ZONE_ID" ]; then
-    log_ok "DNS state: zone $ROUTE53_ZONE_ID"
-    echo ""
-    echo "  ┌─────────────────────────────────────────────────────────────┐"
-    echo "  │  NAMECHEAP ACTION REQUIRED (first deploy only)              │"
-    echo "  │  Set these NS records for ${DOMAIN}:                        │"
-    echo "  │                                                             │"
-    IFS=',' read -ra NS_ARR <<< "$ROUTE53_NS"
-    for ns in "${NS_ARR[@]}"; do
-      printf "  │    %-55s │\n" "$ns"
-    done
-    echo "  │                                                             │"
-    echo "  │  Step 09 will verify delegation before cert-manager runs   │"
-    echo "  └─────────────────────────────────────────────────────────────┘"
-  fi
-
-  cd "$BASE_DIR"
 fi
 
-# ── Cluster state: init + apply ───────────────────────────────────────────────
+# -- Cluster state: init + apply ----------------------------------------------─
 cd "$ENV_DIR"
 log_run "Terraform init (cluster state)..."
 
@@ -159,7 +120,7 @@ fi
 log_run "Terraform apply (cluster state)..."
 terraform apply -auto-approve -parallelism=20
 
-# ── Read outputs into state file ──────────────────────────────────────────────
+# -- Read outputs into state file ----------------------------------------------
 echo ""
 log_info "Reading outputs..."
 
@@ -287,7 +248,7 @@ STATE
   log_ok "State written: $STATE_FILE"
 
 else
-  # ── AWS ──────────────────────────────────────────────────────────────────────
+  # -- AWS ----------------------------------------------------------------------
   CLUSTER_NAME=$(terraform output -raw cluster_name 2>/dev/null \
     || grep 'cluster_name' "${ENV_DIR}/terraform.tfvars" | head -1 \
     | sed 's/.*= *"\(.*\)"/\1/')
@@ -306,17 +267,17 @@ else
   if [ -n "$ROUTE53_ZONE_ID" ]; then
     log_ok "Route53 zone: $ROUTE53_ZONE_ID"
     echo ""
-    echo "  ┌─────────────────────────────────────────────────────────────┐"
-    echo "  │  NAMECHEAP ACTION REQUIRED (first deploy only)              │"
-    echo "  │  Set these NS records for ${DOMAIN:-your-domain}:           │"
-    echo "  │                                                             │"
+    echo "  ┌------------------------------------------------------------─┐"
+    echo "  |  NAMECHEAP ACTION REQUIRED (first deploy only)              |"
+    echo "  |  Set these NS records for ${DOMAIN:-your-domain}:           |"
+    echo "  |                                                             |"
     IFS=',' read -ra NS_ARR <<< "$ROUTE53_NS"
     for ns in "${NS_ARR[@]}"; do
-      printf "  │    %-55s │\n" "$ns"
+      printf "  |    %-55s |\n" "$ns"
     done
-    echo "  │                                                             │"
-    echo "  │  Step 09 will check delegation before running cert-manager  │"
-    echo "  └─────────────────────────────────────────────────────────────┘"
+    echo "  |                                                             |"
+    echo "  |  Step 09 will check delegation before running cert-manager  |"
+    echo "  └------------------------------------------------------------─┘"
     echo ""
   fi
 

@@ -1,7 +1,8 @@
 # Jenkins base values — plain YAML, no template syntax
 # Domain + password injected via overlay set directives
 controller:
-  adminPassword: ""      # set via: --set controller.adminPassword=...
+  admin:
+    password: ""          # set via: --set controller.admin.password=...
   jenkinsUrl: ""         # set via: --set controller.jenkinsUrl=https://jenkins.DOMAIN
   jenkinsUriPrefix: ""
 

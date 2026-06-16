@@ -58,7 +58,7 @@ prometheus:
     storageSpec:
       volumeClaimTemplate:
         spec:
-          storageClassName: ""   # set via overlay: values/storage.yaml
+          storageClassName: "ebs-sc"
           accessModes: ["ReadWriteOnce"]
           resources:
             requests:

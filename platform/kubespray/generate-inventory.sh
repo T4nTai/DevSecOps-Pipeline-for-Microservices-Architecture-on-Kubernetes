@@ -20,6 +20,11 @@ CLUSTER="${CLUSTER:-tools}"
 ADMIN_USER="${ADMIN_USER:-ubuntu}"
 SSH_KEY="${SSH_KEY:-$HOME/.ssh/id_ed25519}"
 
+# When Kubespray runs inside Docker, the host SSH key is mounted at /root/.ssh/id_rsa.
+# The inventory must reference the IN-CONTAINER path, not the host path.
+# 02-kubespray.sh mounts: -v "${SSH_KEY}:/root/.ssh/id_rsa:ro"
+INVENTORY_KEY_PATH="/root/.ssh/id_rsa"
+
 TF_DIR="${BASE_DIR}/infra/aws/envs/${CLUSTER}"
 INVENTORY_FILE="${SCRIPT_DIR}/inventory.ini"
 
@@ -51,7 +56,7 @@ WORKER_IPS=$(terraform output -json worker_private_ips \
 APPS_WORKER_IPS=$(terraform output -json apps_worker_private_ips 2>/dev/null \
   | tr -d '[]" ' | tr ',' '\n' || echo "")
 
-PROXY_ARGS="ansible_ssh_common_args='-o StrictHostKeyChecking=no -o ProxyJump=${ADMIN_USER}@${BASTION_IP}'"
+PROXY_ARGS="ansible_ssh_common_args='-o StrictHostKeyChecking=no -o IdentityFile=/root/.ssh/id_rsa -o ProxyCommand=\"ssh -i /root/.ssh/id_rsa -o StrictHostKeyChecking=no -W %h:%p ${ADMIN_USER}@${BASTION_IP}\"'"
 
 echo "    Bastion: $BASTION_IP"
 
@@ -61,7 +66,7 @@ IDX=1
 while IFS= read -r IP; do
   [[ -z "$IP" ]] && continue
   echo "    Control-plane-${IDX}: $IP"
-  ALL_SECTION+="control-plane-${IDX}  ansible_host=${IP}  ip=${IP}  ansible_user=${ADMIN_USER}  ansible_ssh_private_key_file=${SSH_KEY}  ${PROXY_ARGS}"$'\n'
+  ALL_SECTION+="control-plane-${IDX}  ansible_host=${IP}  ip=${IP}  ansible_user=${ADMIN_USER}  ansible_ssh_private_key_file=${INVENTORY_KEY_PATH}  ${PROXY_ARGS}"$'\n'
   CP_SECTION+="control-plane-${IDX}"$'\n'
   ETCD_SECTION+="control-plane-${IDX}"$'\n'
   IDX=$((IDX + 1))
@@ -71,7 +76,7 @@ IDX=1
 while IFS= read -r IP; do
   [[ -z "$IP" ]] && continue
   echo "    Worker-${IDX}: $IP"
-  ALL_SECTION+="worker-${IDX}  ansible_host=${IP}  ip=${IP}  ansible_user=${ADMIN_USER}  ansible_ssh_private_key_file=${SSH_KEY}  ${PROXY_ARGS}"$'\n'
+  ALL_SECTION+="worker-${IDX}  ansible_host=${IP}  ip=${IP}  ansible_user=${ADMIN_USER}  ansible_ssh_private_key_file=${INVENTORY_KEY_PATH}  ${PROXY_ARGS}"$'\n'
   NODE_SECTION+="worker-${IDX}"$'\n'
   IDX=$((IDX + 1))
 done <<< "$WORKER_IPS"
@@ -80,7 +85,7 @@ IDX=1
 while IFS= read -r IP; do
   [[ -z "$IP" ]] && continue
   echo "    Apps-worker-${IDX}: $IP"
-  ALL_SECTION+="apps-worker-${IDX}  ansible_host=${IP}  ip=${IP}  ansible_user=${ADMIN_USER}  ansible_ssh_private_key_file=${SSH_KEY}  ${PROXY_ARGS}"$'\n'
+  ALL_SECTION+="apps-worker-${IDX}  ansible_host=${IP}  ip=${IP}  ansible_user=${ADMIN_USER}  ansible_ssh_private_key_file=${INVENTORY_KEY_PATH}  ${PROXY_ARGS}"$'\n'
   NODE_SECTION+="apps-worker-${IDX}"$'\n'
   APPS_NODE_SECTION+="apps-worker-${IDX}"$'\n'
   IDX=$((IDX + 1))

@@ -9,7 +9,7 @@ check_k8s
 check_helm
 export KUBECONFIG="$KUBECONFIG"
 
-# ── Install Argo Rollouts ─────────────────────────────────────────────────────
+# -- Install Argo Rollouts ----------------------------------------------------─
 ROLLOUTS_STATUS=$(kubectl get deployment argo-rollouts -n argo-rollouts \
   --no-headers 2>/dev/null | awk '{print $2}' || echo "0/0")
 
@@ -31,7 +31,7 @@ else
   log_ok "Argo Rollouts installed"
 fi
 
-# ── Install kubectl plugin (optional, for local promote/abort) ────────────────
+# -- Install kubectl plugin (optional, for local promote/abort) ----------------
 if ! command -v kubectl-argo-rollouts &>/dev/null; then
   log_info "Installing kubectl argo-rollouts plugin..."
   curl -sL https://github.com/argoproj/argo-rollouts/releases/latest/download/kubectl-argo-rollouts-linux-amd64 \
@@ -40,13 +40,13 @@ if ! command -v kubectl-argo-rollouts &>/dev/null; then
   log_ok "kubectl argo-rollouts plugin installed"
 fi
 
-# ── Verify ────────────────────────────────────────────────────────────────────
+# -- Verify --------------------------------------------------------------------
 echo ""
 log_info "Argo Rollouts pods:"
 kubectl get pods -n argo-rollouts
 
 echo ""
-echo "══════════════════════════════════════════════════════"
+echo "======================================================"
 echo "  Argo Rollouts ready"
 echo "  Dashboard: https://rollouts.${DOMAIN}"
 echo ""
@@ -54,6 +54,6 @@ echo "  Canary commands:"
 echo "    kubectl argo rollouts get rollout frontend -n default --watch"
 echo "    kubectl argo rollouts promote frontend -n default"
 echo "    kubectl argo rollouts abort frontend -n default"
-echo "══════════════════════════════════════════════════════"
+echo "======================================================"
 
 log_success "STEP 13"

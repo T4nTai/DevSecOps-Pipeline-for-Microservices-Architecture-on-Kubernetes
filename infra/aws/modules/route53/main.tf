@@ -1,19 +1,20 @@
-# Route53 DNS records module
+# Route53 DNS module
 #
-# This module manages ONLY the A records (apex + wildcard) pointing to the
-# ingress NLB. The Route53 ZONE itself lives in a separate Terraform state
-# (infra/aws/dns/) and is never destroyed during cluster rebuilds.
+# Manages the hosted zone AND A records (apex + wildcard) pointing to the
+# ingress NLB. Zone is created and destroyed together with the cluster state.
 #
-# Inputs:
-#   zone_id      — from data.terraform_remote_state.dns.outputs.zone_id
-#   nlb_dns_name — from module.ingress_nlb.dns_name
-#   nlb_zone_id  — from module.ingress_nlb.zone_id (stable even if NLB is replaced)
+# After first apply, set the NS records at your registrar (one-time step):
+#   terraform output -json route53_name_servers
+
+resource "aws_route53_zone" "this" {
+  name = var.domain_name
+}
 
 # Apex ALIAS A record → ingress NLB
 # ALIAS (not CNAME) so Route53 evaluates target health and routes traffic
 # away from an unhealthy NLB. Resolves without an extra DNS hop.
 resource "aws_route53_record" "apex" {
-  zone_id = var.zone_id
+  zone_id = aws_route53_zone.this.zone_id
   name    = var.domain_name
   type    = "A"
 
@@ -27,7 +28,7 @@ resource "aws_route53_record" "apex" {
 # Wildcard ALIAS A record → ingress NLB
 # Covers all subdomains: jenkins.*, argocd.*, grafana.*, etc.
 resource "aws_route53_record" "wildcard" {
-  zone_id = var.zone_id
+  zone_id = aws_route53_zone.this.zone_id
   name    = "*.${var.domain_name}"
   type    = "A"
 

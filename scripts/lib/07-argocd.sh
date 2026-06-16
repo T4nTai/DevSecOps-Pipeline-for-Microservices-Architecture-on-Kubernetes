@@ -16,7 +16,7 @@ check_vars BASTION_IP SSH_KEY
 
 ARGOCD_CHART_VERSION="9.4.12"
 
-# ── Helper: save secret to vault (cloud-aware) ────────────────────────────────
+# -- Helper: save secret to vault (cloud-aware) --------------------------------
 _save_to_vault() {
   local name="$1" value="$2"
   if [[ "$CLOUD" == "azure" ]] && [ -n "${VAULT_NAME:-}" ]; then
@@ -126,7 +126,7 @@ log_info "  URL:      http://$LB_ENDPOINT/argocd"
 log_info "  Username: admin"
 log_info "  Password: ${ARGOCD_PASSWORD:-(see vault/SSM: argocd-admin-password)}"
 
-# ── Apply Online Boutique ApplicationSets (dev + prod) ───────────────────────
+# -- Apply Online Boutique ApplicationSets (dev + prod) ----------------------─
 # dev-appset  watches: develop branch → namespace boutique-dev
 # prod-appset watches: main branch    → namespace boutique-prod
 echo ""
@@ -135,5 +135,13 @@ envsubst < "$BASE_DIR/k8s/argocd/apps/online-boutique-dev-appset.yaml"  | kubect
 log_ok "Dev ApplicationSet applied  (develop → boutique-dev)"
 envsubst < "$BASE_DIR/k8s/argocd/apps/online-boutique-prod-appset.yaml" | kubectl apply -f -
 log_ok "Prod ApplicationSet applied (main → boutique-prod)"
+
+# -- Apply NetworkPolicies (default-deny + explicit allow per service) --------
+echo ""
+log_info "Applying NetworkPolicies..."
+kubectl create namespace boutique-dev  2>/dev/null || true
+kubectl create namespace boutique-prod 2>/dev/null || true
+kubectl apply -f "$BASE_DIR/k8s/network-policies/"
+log_ok "NetworkPolicies applied (boutique-dev + boutique-prod)"
 
 log_success "STEP 07"

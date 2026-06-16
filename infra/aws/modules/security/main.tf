@@ -63,11 +63,11 @@ resource "aws_security_group" "ingress_nlb" {
 # this self-referencing etcd SG for control-plane-to-control-plane traffic.
 resource "aws_security_group" "control_plane" {
   name        = "${var.cluster_name}-control-plane-sg"
-  description = "Control plane nodes — etcd ports accessible only by other control planes (self-reference)"
+  description = "Control plane nodes - etcd ports accessible only by other control planes (self-reference)"
   vpc_id      = var.vpc_id
 
   ingress {
-    description = "etcd client — kube-apiserver to etcd (stacked topology)"
+    description = "etcd client - kube-apiserver to etcd (stacked topology)"
     from_port   = 2379
     to_port     = 2379
     protocol    = "tcp"
@@ -75,7 +75,7 @@ resource "aws_security_group" "control_plane" {
   }
 
   ingress {
-    description = "etcd peer — leader election and log replication between etcd members"
+    description = "etcd peer - leader election and log replication between etcd members"
     from_port   = 2380
     to_port     = 2380
     protocol    = "tcp"

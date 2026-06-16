@@ -17,7 +17,7 @@ if [[ "$CLOUD" == "azure" ]]; then
     SUBSCRIPTION_ID TENANT_ID VMSS_NAME VMSS_SPOT_NAME RESOURCE_GROUP SSH_KEY
 fi
 
-# ── Cluster Autoscaler ────────────────────────────────────────────────────────
+# -- Cluster Autoscaler --------------------------------------------------------
 echo ""
 log_info "Deploying Cluster Autoscaler..."
 
@@ -93,7 +93,7 @@ else
   fi
 fi
 
-# ── metrics-server ────────────────────────────────────────────────────────────
+# -- metrics-server ------------------------------------------------------------
 echo ""
 log_info "Deploying metrics-server..."
 

@@ -61,7 +61,7 @@ releases:
   - name: jenkins
     namespace: jenkins
     chart: jenkins/jenkins
-    version: "5.1.5"
+    version: "5.9.25"
     values:
       - ../../base/values/jenkins.yaml
       - values/storage.yaml
@@ -85,7 +85,7 @@ releases:
   - name: sonarqube
     namespace: sonarqube
     chart: sonarqube/sonarqube
-    version: "10.5.1+2816"
+    version: "2026.3.1"
     values:
       - ../../base/values/sonarqube.yaml
       - values/storage.yaml

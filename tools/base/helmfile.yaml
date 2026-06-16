@@ -40,49 +40,17 @@ helmDefaults:
   cleanupOnFail: false
   createNamespace: true
 
+# Releases defined here: only those with NO cloud-specific overrides.
+# Releases that need cloud-specific values (storageClass, LB type, KMS, IRSA)
+# are defined entirely in overlays/aws/ and overlays/azure/ to avoid duplicates.
 releases:
-
-  - name: cert-manager
-    namespace: cert-manager
-    chart: jetstack/cert-manager
-    version: "v1.14.5"
-    values:
-      - "../../base/values/cert-manager.yaml"
-
-  - name: ingress-nginx
-    namespace: ingress-nginx
-    chart: ingress-nginx/ingress-nginx
-    version: "4.10.1"
-    values:
-      - "../../base/values/ingress-nginx.yaml"
 
   - name: argocd
     namespace: argocd
     chart: argo/argo-cd
-    version: "6.7.14"
+    version: "7.8.26"
     values:
       - "../../base/values/argocd.yaml"
-
-  - name: jenkins
-    namespace: jenkins
-    chart: jenkins/jenkins
-    version: "5.1.5"
-    values:
-      - "../../base/values/jenkins.yaml"
-
-  - name: prometheus
-    namespace: monitoring
-    chart: prometheus-community/kube-prometheus-stack
-    version: "58.5.3"
-    values:
-      - "../../base/values/monitoring.yaml"
-
-  - name: loki
-    namespace: monitoring
-    chart: grafana/loki
-    version: "6.6.2"
-    values:
-      - "../../base/values/loki.yaml"
 
   - name: promtail
     namespace: monitoring
@@ -90,27 +58,6 @@ releases:
     version: "6.15.5"
     values:
       - "../../base/values/promtail.yaml"
-
-  - name: sonarqube
-    namespace: sonarqube
-    chart: sonarqube/sonarqube
-    version: "10.5.1+2816"
-    values:
-      - "../../base/values/sonarqube.yaml"
-
-  - name: harbor
-    namespace: harbor
-    chart: harbor/harbor
-    version: "1.14.2"
-    values:
-      - "../../base/values/harbor.yaml"
-
-  - name: vault
-    namespace: vault
-    chart: hashicorp/vault
-    version: "0.28.0"
-    values:
-      - "../../base/values/vault.yaml"
 
   - name: argo-rollouts
     namespace: argo-rollouts

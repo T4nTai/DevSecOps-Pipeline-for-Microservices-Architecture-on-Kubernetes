@@ -13,14 +13,14 @@ STATE_FILE="$BASE_DIR/.deploy-state.env"
 KUBECONFIG="$BASE_DIR/.kubeconfig"
 REGION="ap-southeast-1"
 
-# ── Load state ────────────────────────────────────────────────────────────────
+# -- Load state ----------------------------------------------------------------
 [ -f "$STATE_FILE" ] || { echo "[ERROR] State file not found. Run step 01 first."; exit 1; }
 source "$STATE_FILE"
 export KUBECONFIG
 
 [ -n "${BURST_WORKER_ID:-}" ] || { echo "[ERROR] BURST_WORKER_ID not set — burst_worker_count=0 in tfvars."; exit 1; }
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
+# -- Helpers ------------------------------------------------------------------─
 get_instance_state() {
   aws ec2 describe-instances \
     --instance-ids "$BURST_WORKER_ID" \
@@ -34,25 +34,25 @@ get_node_name() {
     | awk -v ip="$BURST_WORKER_IP" '$6==ip {print $1}'
 }
 
-# ── Status ────────────────────────────────────────────────────────────────────
+# -- Status --------------------------------------------------------------------
 cmd_status() {
   EC2_STATE=$(get_instance_state)
   NODE_NAME=$(get_node_name || echo "")
   NODE_STATUS=$(kubectl get node "$NODE_NAME" --no-headers 2>/dev/null | awk '{print $2}' || echo "unknown")
 
   echo ""
-  echo "══════════════════════════════════════"
+  echo "======================================"
   echo "  Burst Worker Status"
-  echo "══════════════════════════════════════"
+  echo "======================================"
   echo "  Instance ID: $BURST_WORKER_ID"
   echo "  Private IP:  ${BURST_WORKER_IP:-unknown}"
   echo "  EC2 state:   $EC2_STATE"
   echo "  K8s node:    ${NODE_NAME:-not found}"
   echo "  K8s status:  $NODE_STATUS"
-  echo "══════════════════════════════════════"
+  echo "======================================"
 }
 
-# ── Start ─────────────────────────────────────────────────────────────────────
+# -- Start --------------------------------------------------------------------─
 cmd_start() {
   EC2_STATE=$(get_instance_state)
 
@@ -100,7 +100,7 @@ cmd_start() {
   echo "[OK  ] Burst worker ready: $NODE_NAME"
 }
 
-# ── Stop ──────────────────────────────────────────────────────────────────────
+# -- Stop ----------------------------------------------------------------------
 cmd_stop() {
   EC2_STATE=$(get_instance_state)
 
@@ -130,7 +130,7 @@ cmd_stop() {
   echo "[OK  ] Burst worker stopped. (EBS preserved)"
 }
 
-# ── Main ──────────────────────────────────────────────────────────────────────
+# -- Main ----------------------------------------------------------------------
 ACTION="${1:-status}"
 case "$ACTION" in
   start)  cmd_start ;;

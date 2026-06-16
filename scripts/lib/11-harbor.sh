@@ -11,7 +11,7 @@ export KUBECONFIG="$KUBECONFIG"
 
 HARBOR_VERSION="1.14.2"
 
-# ── Resolve password ───────────────────────────────────────────────────────────
+# -- Resolve password ----------------------------------------------------------─
 echo ""
 log_info "Resolving Harbor admin password..."
 if [ -z "${HARBOR_ADMIN_PASSWORD:-}" ]; then
@@ -21,14 +21,14 @@ if [ -z "${HARBOR_ADMIN_PASSWORD:-}" ]; then
 fi
 log_ok "Harbor password resolved"
 
-# ── Add Helm repo ─────────────────────────────────────────────────────────────
+# -- Add Helm repo ------------------------------------------------------------─
 echo ""
 log_info "Adding Harbor Helm repo..."
 helm repo add harbor https://helm.goharbor.io 2>/dev/null || true
 helm repo update 2>/dev/null || true
 log_ok "Helm repo ready"
 
-# ── Values: base + cloud storageClass overlay + domain/password ───────────────
+# -- Values: base + cloud storageClass overlay + domain/password --------------─
 STORAGE_OVERLAY="$BASE_DIR/tools/overlays/${CLOUD}/values/storage.yaml"
 
 # Domain + password written to temp file (nested harbor keys work better this way)
@@ -47,7 +47,7 @@ _harbor_flags=(
 [ -f "$STORAGE_OVERLAY" ] && _harbor_flags+=(-f "$STORAGE_OVERLAY")
 _harbor_flags+=(-f /tmp/harbor-domain.yaml)
 
-# ── Install / Upgrade Harbor ──────────────────────────────────────────────────
+# -- Install / Upgrade Harbor --------------------------------------------------
 echo ""
 HARBOR_STATUS=$(kubectl get deployment harbor-core -n harbor \
   --no-headers 2>/dev/null | awk '{print $2}' || echo "0/0")
@@ -66,7 +66,7 @@ fi
 
 rm -f /tmp/harbor-domain.yaml
 
-# ── CoreDNS rewrite: harbor.DOMAIN → harbor-core ClusterIP (hairpin NAT fix) ──
+# -- CoreDNS rewrite: harbor.DOMAIN → harbor-core ClusterIP (hairpin NAT fix) --
 echo ""
 log_info "Adding CoreDNS rewrite for Harbor internal resolution..."
 if kubectl get configmap coredns -n kube-system -o jsonpath='{.data.Corefile}' 2>/dev/null | grep -q "rewrite name harbor"; then
@@ -81,19 +81,19 @@ else
   log_ok "CoreDNS: harbor.${DOMAIN} → harbor-core.harbor.svc.cluster.local"
 fi
 
-# ── Verify ────────────────────────────────────────────────────────────────────
+# -- Verify --------------------------------------------------------------------
 echo ""
 log_info "Harbor pods:"
 kubectl get pods -n harbor
 
 echo ""
-echo "══════════════════════════════════════════════════════"
+echo "======================================================"
 echo "  Harbor ready"
 echo "  https://harbor.${DOMAIN}"
 echo "  Login: admin / [HARBOR_ADMIN_PASSWORD]"
 echo ""
 echo "  Docker login:"
 echo "  docker login harbor.${DOMAIN} -u admin -p [HARBOR_ADMIN_PASSWORD]"
-echo "══════════════════════════════════════════════════════"
+echo "======================================================"
 
 log_success "STEP 11"

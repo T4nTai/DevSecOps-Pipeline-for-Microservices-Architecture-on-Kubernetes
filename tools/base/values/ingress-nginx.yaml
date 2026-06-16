@@ -1,5 +1,5 @@
 # ingress-nginx base values
-# Default: NodePort (bare-metal / local). Overlays set LoadBalancer + cloud annotations.
+# NodePort on 30080/30443 — Terraform-managed NLB forwards traffic here.
 controller:
   service:
     type: NodePort
@@ -10,7 +10,7 @@ controller:
   config:
     use-forwarded-headers: "true"
     compute-full-forwarded-for: "true"
-    use-proxy-protocol: "false"   # set true in AWS overlay (NLB requirement)
+    use-proxy-protocol: "false"
     proxy-body-size: "50m"
 
   resources:
@@ -28,6 +28,17 @@ controller:
       namespace: monitoring
       additionalLabels:
         release: prometheus
+
+  # Use wildcard cert from ingress-nginx namespace as default SSL cert.
+  # This allows ingresses in other namespaces (jenkins, argocd, etc.) to
+  # serve TLS without needing the secret copied to each namespace.
+  extraArgs:
+    default-ssl-certificate: "ingress-nginx/tools-wildcard-tls"
+
+  # Disable admission webhook — self-signed cert causes x509 errors on
+  # bare-metal clusters where the API server cannot verify the cert.
+  admissionWebhooks:
+    enabled: false
 
 defaultBackend:
   enabled: false

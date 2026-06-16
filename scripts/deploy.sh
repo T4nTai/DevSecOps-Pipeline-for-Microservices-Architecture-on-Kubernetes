@@ -10,7 +10,7 @@ SECRET_FILE="$BASE_DIR/.env.secret"
 
 export BASE_DIR
 
-# ── Parse flags ───────────────────────────────────────────────────────────────
+# -- Parse flags --------------------------------------------------------------─
 for arg in "$@"; do
   case "$arg" in
     --cloud=*)       CLOUD="${arg#*=}" ;;
@@ -27,23 +27,23 @@ export CLOUD="${CLOUD:-aws}"
 export CLUSTER="tools"
 START_FROM="${START_FROM:-01}"
 
-# ── Validate ──────────────────────────────────────────────────────────────────
+# -- Validate ------------------------------------------------------------------
 case "$CLOUD" in
   aws|azure) ;;
   *) echo "[ERROR] --cloud must be 'aws' or 'azure'"; exit 1 ;;
 esac
 
-# ── Source helpers ────────────────────────────────────────────────────────────
+# -- Source helpers ------------------------------------------------------------
 # shellcheck disable=SC1090
 source "$STEPS_DIR/00-checks.sh"
 
-# ── Load .env (config) ────────────────────────────────────────────────────────
+# -- Load .env (config) --------------------------------------------------------
 if [ -f "$ENV_FILE" ]; then
   log_info "Loading .env..."
   set -a; source "$ENV_FILE"; set +a
 fi
 
-# ── Config defaults ───────────────────────────────────────────────────────────
+# -- Config defaults ----------------------------------------------------------─
 export PROJECT_NAME="${PROJECT_NAME:-devsecops}"
 export ENVIRONMENT="$CLUSTER"
 export WIREGUARD_PEERS="${WIREGUARD_PEERS:-3}"
@@ -67,13 +67,13 @@ else
   export KUBESPRAY_VERSION="${KUBESPRAY_VERSION:-release-2.26}"
 fi
 
-# ── Load .env.secret (local overrides) ───────────────────────────────────────
+# -- Load .env.secret (local overrides) --------------------------------------─
 if [ -f "$SECRET_FILE" ]; then
   log_info "Loading .env.secret..."
   set -a; source "$SECRET_FILE"; set +a
 fi
 
-# ── Write SSH key from env vars ───────────────────────────────────────────────
+# -- Write SSH key from env vars ----------------------------------------------─
 SSH_DIR="/tmp/ssh"
 mkdir -p "$SSH_DIR"
 
@@ -91,12 +91,12 @@ if [ -n "${SSH_PUBLIC_KEY:-}" ]; then
   export SSH_PUB_KEY="$SSH_DIR/id_rsa.pub"
 fi
 
-# ── Load secrets from vault / SSM ────────────────────────────────────────────
+# -- Load secrets from vault / SSM --------------------------------------------
 echo ""
 # shellcheck disable=SC1090
 source "$STEPS_DIR/load-secrets.sh" || true
 
-# ── Step list ─────────────────────────────────────────────────────────────────
+# -- Step list ----------------------------------------------------------------─
 STEPS=(
   "01-terraform.sh"
   "02-kubespray.sh"
@@ -113,17 +113,17 @@ STEPS=(
   "13-argo-rollouts.sh"
 )
 
-# ── Header ────────────────────────────────────────────────────────────────────
+# -- Header --------------------------------------------------------------------
 echo ""
-echo "══════════════════════════════════════════"
+echo "=========================================="
 echo "  DEVSECOPS DEPLOYMENT PIPELINE"
 echo "  Cloud:      $CLOUD"
 echo "  Start from: step $START_FROM"
 echo "  Vault/SSM:  ${VAULT_NAME:-${CLUSTER_NAME:-devsecops}}"
 echo "  SSH key:    $SSH_KEY"
-echo "══════════════════════════════════════════"
+echo "=========================================="
 
-# ── Run steps ─────────────────────────────────────────────────────────────────
+# -- Run steps ----------------------------------------------------------------─
 for STEP in "${STEPS[@]}"; do
   STEP_NUM="${STEP:0:2}"
 
@@ -162,7 +162,7 @@ for STEP in "${STEPS[@]}"; do
 done
 
 echo ""
-echo "══════════════════════════════════════════"
+echo "=========================================="
 echo "  DEPLOYMENT COMPLETE"
 
 if [[ "$CLOUD" == "azure" ]]; then
@@ -186,4 +186,4 @@ fi
 echo ""
 echo "  Run './connect.sh --cloud=$CLOUD --cluster=$CLUSTER'"
 echo "  Then: kubectl get nodes"
-echo "══════════════════════════════════════════"
+echo "=========================================="

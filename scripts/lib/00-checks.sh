@@ -8,7 +8,7 @@ export STATE_FILE="${BASE_DIR}/.deploy-state.env"
 export SECRET_FILE="${BASE_DIR}/.env.secret"
 export KUBECONFIG="${BASE_DIR}/.kubeconfig"
 
-# ── ANSI colors ───────────────────────────────────────────────────────────────
+# -- ANSI colors --------------------------------------------------------------─
 _C_RESET="\033[0m"; _C_RED="\033[31m"; _C_GREEN="\033[32m"
 _C_YELLOW="\033[33m"; _C_CYAN="\033[36m"; _C_GRAY="\033[90m"; _C_BOLD="\033[1m"
 
@@ -21,19 +21,19 @@ log_run()     { echo -e "${_C_BOLD}[RUN  ]${_C_RESET} $*"; }
 
 log_step() {
   echo ""
-  echo "──────────────────────────────────────────"
+  echo "------------------------------------------"
   echo -e "${_C_BOLD}[STEP ] $1${_C_RESET}"
   echo "        $(date '+%Y-%m-%d %H:%M:%S')"
-  echo "──────────────────────────────────────────"
+  echo "------------------------------------------"
 }
 
 log_success() {
   echo ""
   echo -e "${_C_GREEN}[DONE ] $1 completed at $(date '+%H:%M:%S')${_C_RESET}"
-  echo "──────────────────────────────────────────"
+  echo "------------------------------------------"
 }
 
-# ── Cloud / cluster defaults ──────────────────────────────────────────────────
+# -- Cloud / cluster defaults --------------------------------------------------
 export CLOUD="${CLOUD:-aws}"
 export CLUSTER="${CLUSTER:-tools}"
 
@@ -44,7 +44,7 @@ else
   export ADMIN_USER="${ADMIN_USER:-ubuntu}"
 fi
 
-# ── State helpers ─────────────────────────────────────────────────────────────
+# -- State helpers ------------------------------------------------------------─
 check_state() {
   if [ ! -f "$STATE_FILE" ]; then
     log_error "State file not found: $STATE_FILE"
@@ -76,7 +76,7 @@ update_secret() {
   fi
 }
 
-# ── Tool checks ───────────────────────────────────────────────────────────────
+# -- Tool checks --------------------------------------------------------------─
 check_tools() {
   for tool in "$@"; do
     if ! command -v "$tool" &>/dev/null; then
@@ -94,7 +94,7 @@ check_helm() {
   log_ok "Helm: $(helm version --short)"
 }
 
-# ── Cloud infra checks ────────────────────────────────────────────────────────
+# -- Cloud infra checks --------------------------------------------------------
 check_cloud_infra() {
   if [[ "$CLOUD" == "azure" ]]; then
     _check_azure_infra
@@ -132,7 +132,7 @@ _check_azure_infra() {
   log_ok "Azure infra: RG=$RESOURCE_GROUP  VMSS=$VMSS_NAME"
 }
 
-# ── K8s check + auto-reconnect tunnel ─────────────────────────────────────────
+# -- K8s check + auto-reconnect tunnel ----------------------------------------─
 check_k8s() {
   log_info "Checking K8s cluster..."
   [ -f "$STATE_FILE" ] && source "$STATE_FILE" || true

@@ -10,7 +10,7 @@ check_dns
 check_helm
 export KUBECONFIG="$KUBECONFIG"
 
-# ── Resolve Grafana password ───────────────────────────────────────────────────
+# -- Resolve Grafana password --------------------------------------------------─
 echo ""
 log_info "Resolving Grafana admin password..."
 if [ -z "${GRAFANA_ADMIN_PASSWORD:-}" ]; then
@@ -20,14 +20,14 @@ if [ -z "${GRAFANA_ADMIN_PASSWORD:-}" ]; then
 fi
 log_ok "Grafana password resolved"
 
-# ── Add Helm repos ────────────────────────────────────────────────────────────
+# -- Add Helm repos ------------------------------------------------------------
 echo ""
 helm repo add prometheus-community \
   https://prometheus-community.github.io/helm-charts 2>/dev/null || true
 helm repo add grafana https://grafana.github.io/helm-charts 2>/dev/null || true
 helm repo update 2>/dev/null || true
 
-# ── Values: base + cloud overlay (storageClass) + domain/password ─────────────
+# -- Values: base + cloud overlay (storageClass) + domain/password ------------─
 BASE_VALUES="$BASE_DIR/tools/base/values/monitoring.yaml"
 OVERLAY_VALUES="$BASE_DIR/tools/overlays/${CLOUD}/values/storage.yaml"
 
@@ -54,7 +54,7 @@ _monitoring_flags() {
   echo "${flags[@]}"
 }
 
-# ── Install / Upgrade kube-prometheus-stack ───────────────────────────────────
+# -- Install / Upgrade kube-prometheus-stack ----------------------------------─
 echo ""
 MONITORING_STATUS=$(kubectl get deployment prometheus-grafana \
   -n monitoring --no-headers 2>/dev/null | awk '{print $2}' || echo "0/0")
@@ -82,7 +82,7 @@ fi
 
 rm -f /tmp/grafana-domain.yaml
 
-# ── Install Loki ──────────────────────────────────────────────────────────────
+# -- Install Loki --------------------------------------------------------------
 echo ""
 log_info "Deploying Loki..."
 LOKI_STATUS=$(kubectl get statefulset loki -n monitoring \
@@ -99,7 +99,7 @@ else
   log_ok "Loki deployed"
 fi
 
-# ── Install Promtail ──────────────────────────────────────────────────────────
+# -- Install Promtail ----------------------------------------------------------
 echo ""
 log_info "Deploying Promtail..."
 PROMTAIL_STATUS=$(kubectl get daemonset promtail -n monitoring \
@@ -114,7 +114,7 @@ else
   log_ok "Promtail deployed"
 fi
 
-# ── Verify ────────────────────────────────────────────────────────────────────
+# -- Verify --------------------------------------------------------------------
 echo ""
 log_info "Monitoring pods:"
 kubectl get pods -n monitoring
@@ -126,9 +126,9 @@ FAILED=$(kubectl get pods -n monitoring --no-headers 2>/dev/null \
   log_ok "All monitoring pods running"
 
 echo ""
-echo "══════════════════════════════════════════════════════"
+echo "======================================================"
 echo "  Monitoring ready"
 echo "  https://grafana.${DOMAIN}   admin / [GRAFANA_ADMIN_PASSWORD]"
-echo "══════════════════════════════════════════════════════"
+echo "======================================================"
 
 log_success "STEP 05"

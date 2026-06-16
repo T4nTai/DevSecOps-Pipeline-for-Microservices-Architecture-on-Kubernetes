@@ -79,7 +79,7 @@ else
   rm -f "$TMP_EXPORTS"
 fi
 
-# ── SSH keys: write to file ───────────────────────────────────────────────────
+# -- SSH keys: write to file --------------------------------------------------─
 SSH_DIR="/tmp/ssh"
 mkdir -p "$SSH_DIR"
 

@@ -22,7 +22,7 @@ fi
 MASTER_IP="${MASTER_IP:-${CONTROL_PLANE_IP:-}}"
 check_vars MASTER_IP
 
-# ── Fix kube-proxy ────────────────────────────────────────────────────────────
+# -- Fix kube-proxy ------------------------------------------------------------
 echo ""
 log_info "Fixing kube-proxy configmap..."
 
@@ -46,7 +46,7 @@ done
 kubectl rollout status daemonset/kube-proxy -n kube-system --timeout=120s 2>/dev/null || true
 log_ok "kube-proxy fixed"
 
-# ── Wait for nodes to stabilize ───────────────────────────────────────────────
+# -- Wait for nodes to stabilize ----------------------------------------------─
 echo ""
 log_info "Waiting for nodes to stabilize..."
 sleep 30
@@ -66,7 +66,7 @@ if [ -n "$NOT_READY" ]; then
 fi
 log_ok "Nodes stable"
 
-# ── Fix CoreDNS ───────────────────────────────────────────────────────────────
+# -- Fix CoreDNS --------------------------------------------------------------─
 echo ""
 log_info "Fixing CoreDNS (upstream: $UPSTREAM_DNS)..."
 
@@ -99,7 +99,7 @@ done
 [ "$COREDNS_READY" = false ] && log_warn "CoreDNS still not ready — continuing..."
 log_ok "CoreDNS done"
 
-# ── Fix nodelocaldns ──────────────────────────────────────────────────────────
+# -- Fix nodelocaldns ----------------------------------------------------------
 echo ""
 log_info "Fixing nodelocaldns..."
 
@@ -121,7 +121,7 @@ else
   log_skip "nodelocaldns configmap not found"
 fi
 
-# ── Restart calico-node ───────────────────────────────────────────────────────
+# -- Restart calico-node ------------------------------------------------------─
 echo ""
 log_info "Restarting calico-node..."
 kubectl rollout restart daemonset/calico-node -n kube-system
@@ -130,7 +130,7 @@ log_ok "calico-node restarted"
 
 sleep 30
 
-# ── Verify DNS ────────────────────────────────────────────────────────────────
+# -- Verify DNS ----------------------------------------------------------------
 echo ""
 log_info "Verifying DNS..."
 

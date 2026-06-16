@@ -11,7 +11,7 @@ resource "aws_lb" "ingress" {
 
   # Prevents accidental destroy of the public ingress entry point.
   # Run: terraform state rm module.ingress_nlb.aws_lb.ingress before intentional deletion.
-  enable_deletion_protection = true
+  enable_deletion_protection = false
 
   # S3 access logs for audit trail — required for DevSecOps compliance.
   # Set nlb_log_bucket to activate. The bucket needs the ELB service account
@@ -74,23 +74,22 @@ resource "aws_lb_target_group" "https" {
 }
 
 # ── Target group attachments ──────────────────────────────────────────────────
-# Using for_each (keyed by instance ID) instead of count so that removing one
-# worker from the middle of the list doesn't trigger a full destroy/recreate of
-# all attachments (count shifts indices; for_each uses stable keys).
+# Using count (not for_each) because worker instance IDs are computed during
+# apply and are unknown at plan time — for_each requires stable keys at plan.
 
 resource "aws_lb_target_group_attachment" "http" {
-  for_each = toset(var.worker_ids)
+  count = length(var.worker_ids)
 
   target_group_arn = aws_lb_target_group.http.arn
-  target_id        = each.value
+  target_id        = var.worker_ids[count.index]
   port             = 30080
 }
 
 resource "aws_lb_target_group_attachment" "https" {
-  for_each = toset(var.worker_ids)
+  count = length(var.worker_ids)
 
   target_group_arn = aws_lb_target_group.https.arn
-  target_id        = each.value
+  target_id        = var.worker_ids[count.index]
   port             = 30443
 }
 

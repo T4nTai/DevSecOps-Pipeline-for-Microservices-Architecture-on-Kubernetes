@@ -9,7 +9,7 @@ check_k8s
 check_helm
 export KUBECONFIG="$KUBECONFIG"
 
-# ── Resolve password ───────────────────────────────────────────────────────────
+# -- Resolve password ----------------------------------------------------------─
 echo ""
 log_info "Resolving Jenkins admin password..."
 if [ -z "${JENKINS_ADMIN_PASSWORD:-}" ]; then
@@ -19,12 +19,12 @@ if [ -z "${JENKINS_ADMIN_PASSWORD:-}" ]; then
 fi
 log_ok "Jenkins password resolved"
 
-# ── Add Helm repo ─────────────────────────────────────────────────────────────
+# -- Add Helm repo ------------------------------------------------------------─
 echo ""
 helm repo add jenkins https://charts.jenkins.io 2>/dev/null || true
 helm repo update 2>/dev/null || true
 
-# ── Install / Upgrade Jenkins ─────────────────────────────────────────────────
+# -- Install / Upgrade Jenkins ------------------------------------------------─
 echo ""
 log_info "Deploying/upgrading Jenkins..."
 
@@ -44,7 +44,7 @@ _jenkins_flags=(
 )
 [ -f "$STORAGE_OVERLAY" ] && _jenkins_flags+=(-f "$STORAGE_OVERLAY")
 _jenkins_flags+=(
-  --set "controller.adminPassword=${JENKINS_ADMIN_PASSWORD}"
+  --set "controller.admin.password=${JENKINS_ADMIN_PASSWORD}"
   --set "controller.jenkinsUrl=https://jenkins.${DOMAIN}"
 )
 
@@ -55,7 +55,7 @@ helm upgrade --install jenkins jenkins/jenkins \
 
 log_ok "Jenkins deployed/upgraded"
 
-# ── Harbor credentials secret (dùng cho Kaniko build image) ──────────────────
+# -- Harbor credentials secret (dùng cho Kaniko build image) ------------------
 if [ -z "${HARBOR_ADMIN_PASSWORD:-}" ]; then
   log_warn "HARBOR_ADMIN_PASSWORD không set — bỏ qua tạo harbor-credentials secret"
 else
@@ -68,11 +68,11 @@ else
   log_ok "harbor-credentials secret applied"
 fi
 
-# ── Ingress ───────────────────────────────────────────────────────────────────
+# -- Ingress ------------------------------------------------------------------─
 envsubst < "$BASE_DIR/tools/ingresses/jenkins.yaml" | kubectl apply -f -
 log_ok "Jenkins ingress applied"
 
-# ── Verify ────────────────────────────────────────────────────────────────────
+# -- Verify --------------------------------------------------------------------
 echo ""
 log_info "Jenkins pods:"
 kubectl get pods -n jenkins
@@ -82,10 +82,10 @@ log_info "Jenkins ingress:"
 kubectl get ingress -n jenkins
 
 echo ""
-echo "══════════════════════════════════════════════════════"
+echo "======================================================"
 echo "  Jenkins ready"
 echo "  https://jenkins.${DOMAIN}"
 echo "  Login: admin / [JENKINS_ADMIN_PASSWORD]"
-echo "══════════════════════════════════════════════════════"
+echo "======================================================"
 
 log_success "STEP 08"

@@ -11,7 +11,7 @@ export KUBECONFIG="$KUBECONFIG"
 
 CERT_MANAGER_VERSION="v1.14.5"
 
-# ── Load zone info from state ─────────────────────────────────────────────────
+# -- Load zone info from state ------------------------------------------------─
 ROUTE53_ZONE_ID="${ROUTE53_ZONE_ID:-}"
 ROUTE53_NS="${ROUTE53_NS:-}"
 
@@ -25,7 +25,7 @@ if [ -z "$ROUTE53_ZONE_ID" ] && [ -d "${ENV_DIR:-}" ]; then
     | jq -r '.[]' 2>/dev/null | tr '\n' ',' | sed 's/,$//' || echo "")
 fi
 
-# ── NS delegation check ───────────────────────────────────────────────────────
+# -- NS delegation check ------------------------------------------------------─
 # cert-manager's DNS-01 challenge works like this:
 #   1. cert-manager writes a TXT record to Route53
 #   2. Let's Encrypt queries that TXT record using the domain's PUBLIC nameservers
@@ -67,14 +67,17 @@ check_ns_delegation() {
       | sort | tr '\n' ' ' | tr -s ' ' || true)
   fi
 
-  # Compare: check if any Route53 NS appears in public NS
+  # Compare: check if any Route53 NS appears in public NS output
   local delegation_ok=false
-  local first_r53_ns
-  first_r53_ns=$(echo "$r53_ns" | awk '{print $1}' | tr -d '.')
-
-  if echo "$public_ns" | grep -qi "$first_r53_ns"; then
-    delegation_ok=true
-  fi
+  local ns
+  for ns in $r53_ns; do
+    # Strip trailing dot (Route53 returns FQDNs with trailing dot)
+    local ns_clean="${ns%.}"
+    if echo "$public_ns" | grep -qi "$ns_clean"; then
+      delegation_ok=true
+      break
+    fi
+  done
 
   if [ "$delegation_ok" = true ]; then
     log_ok "NS delegation confirmed: ${domain} → Route53 ✓"
@@ -83,30 +86,30 @@ check_ns_delegation() {
 
   # Delegation not confirmed — print clear instructions
   echo ""
-  echo "  ┌──────────────────────────────────────────────────────────────────┐"
-  echo "  │  ⚠️  NS NOT DELEGATED — cert-manager will FAIL                   │"
-  echo "  ├──────────────────────────────────────────────────────────────────┤"
-  echo "  │  The domain ${domain} is not yet pointing to Route53.            │"
-  echo "  │                                                                  │"
-  echo "  │  Go to Namecheap → Domain List → Manage → Nameservers           │"
-  echo "  │  Select: Custom DNS, then paste these 4 records:                │"
-  echo "  │                                                                  │"
+  echo "  ┌------------------------------------------------------------------┐"
+  echo "  |  ⚠️  NS NOT DELEGATED — cert-manager will FAIL                   |"
+  echo "  ├------------------------------------------------------------------┤"
+  echo "  |  The domain ${domain} is not yet pointing to Route53.            |"
+  echo "  |                                                                  |"
+  echo "  |  Go to Namecheap → Domain List → Manage → Nameservers           |"
+  echo "  |  Select: Custom DNS, then paste these 4 records:                |"
+  echo "  |                                                                  |"
   for ns in $r53_ns; do
-    printf "  │    %-64s│\n" "$ns"
+    printf "  |    %-64s|\n" "$ns"
   done
-  echo "  │                                                                  │"
-  echo "  │  Current public NS (what Namecheap has now):                    │"
+  echo "  |                                                                  |"
+  echo "  |  Current public NS (what Namecheap has now):                    |"
   if [ -n "$public_ns" ]; then
     for ns in $public_ns; do
-      printf "  │    %-64s│\n" "$ns"
+      printf "  |    %-64s|\n" "$ns"
     done
   else
-    echo "  │    (none found — domain may not be delegated at all)           │"
+    echo "  |    (none found — domain may not be delegated at all)           |"
   fi
-  echo "  │                                                                  │"
-  echo "  │  After saving: wait 5-30 minutes for propagation, then re-run:  │"
-  echo "  │    bash scripts/deploy.sh --cloud=aws --start-from=09           │"
-  echo "  └──────────────────────────────────────────────────────────────────┘"
+  echo "  |                                                                  |"
+  echo "  |  After saving: wait 5-30 minutes for propagation, then re-run:  |"
+  echo "  |    bash scripts/deploy.sh --cloud=aws --start-from=09           |"
+  echo "  └------------------------------------------------------------------┘"
   echo ""
 
   if [ "${NS_CHECK_STRICT:-false}" = "true" ]; then
@@ -118,7 +121,7 @@ check_ns_delegation() {
   fi
 }
 
-# ── Install cert-manager ──────────────────────────────────────────────────────
+# -- Install cert-manager ------------------------------------------------------
 echo ""
 log_info "Installing cert-manager ${CERT_MANAGER_VERSION}..."
 
@@ -139,7 +142,7 @@ else
   log_ok "cert-manager installed"
 fi
 
-# ── Wait for webhooks to be ready ─────────────────────────────────────────────
+# -- Wait for webhooks to be ready --------------------------------------------─
 echo ""
 log_info "Waiting for cert-manager webhooks..."
 kubectl wait --for=condition=ready pod \
@@ -147,10 +150,10 @@ kubectl wait --for=condition=ready pod \
   -n cert-manager --timeout=120s
 log_ok "cert-manager ready"
 
-# ── NS check (before wasting time on a challenge that will fail) ──────────────
+# -- NS check (before wasting time on a challenge that will fail) --------------
 check_ns_delegation
 
-# ── ClusterIssuer (generated inline with optional hostedZoneID) ───────────────
+# -- ClusterIssuer (generated inline with optional hostedZoneID) --------------─
 # hostedZoneID is set when ROUTE53_ZONE_ID is known. This avoids cert-manager
 # having to do a Zone discovery lookup, which is slower and occasionally fails
 # when multiple zones exist or IAM permissions are marginal.
@@ -185,7 +188,7 @@ EOF
 fi
 log_ok "ClusterIssuer applied"
 
-# ── Wait for ClusterIssuer to become Ready ────────────────────────────────────
+# -- Wait for ClusterIssuer to become Ready ------------------------------------
 echo ""
 log_info "Waiting for ClusterIssuer to become Ready..."
 for i in $(seq 1 12); do
@@ -203,12 +206,12 @@ for i in $(seq 1 12); do
   sleep 10
 done
 
-# ── Wildcard Certificate ──────────────────────────────────────────────────────
+# -- Wildcard Certificate ------------------------------------------------------
 echo ""
 log_info "Requesting wildcard certificate for *.${DOMAIN}..."
 envsubst < "$BASE_DIR/tools/issuers/certificate.yaml" | kubectl apply -f -
 
-# ── Wait for certificate — extended timeout for DNS propagation ───────────────
+# -- Wait for certificate — extended timeout for DNS propagation --------------─
 # DNS-01 challenges can take longer than 5 min when:
 #   - Route53 propagation is slow (~1 min normal, up to 5 min edge)
 #   - Let's Encrypt retries on its side (10-30 min if rate-limited)
@@ -223,29 +226,29 @@ if kubectl wait --for=condition=ready certificate/tools-wildcard \
   log_ok "Certificate issued: *.${DOMAIN}"
 else
   echo ""
-  echo "  ┌──────────────────────────────────────────────────────────────────┐"
-  echo "  │  Certificate timed out. Possible causes:                        │"
-  echo "  │                                                                  │"
-  echo "  │  1. NS not delegated yet → wait and re-run step 09              │"
-  echo "  │  2. IAM role missing Route53 permissions                        │"
-  echo "  │     → check stateful node role has route53:ChangeResourceRecordSets│"
-  echo "  │  3. cert-manager pod not on stateful node                       │"
-  echo "  │     → check cert-manager pod nodeSelector/tolerations           │"
-  echo "  │  4. Let's Encrypt rate limit hit (5 certs/week per domain)      │"
-  echo "  │     → wait 1 week or use staging server for testing             │"
-  echo "  │                                                                  │"
-  echo "  │  Debug commands:                                                 │"
-  echo "  │    kubectl describe certificate/tools-wildcard -n ingress-nginx  │"
-  echo "  │    kubectl describe certificaterequest -n ingress-nginx          │"
-  echo "  │    kubectl describe challenge -n ingress-nginx                   │"
-  echo "  │    kubectl logs -n cert-manager -l app=cert-manager -f          │"
-  echo "  └──────────────────────────────────────────────────────────────────┘"
+  echo "  ┌------------------------------------------------------------------┐"
+  echo "  |  Certificate timed out. Possible causes:                        |"
+  echo "  |                                                                  |"
+  echo "  |  1. NS not delegated yet → wait and re-run step 09              |"
+  echo "  |  2. IAM role missing Route53 permissions                        |"
+  echo "  |     → check stateful node role has route53:ChangeResourceRecordSets|"
+  echo "  |  3. cert-manager pod not on stateful node                       |"
+  echo "  |     → check cert-manager pod nodeSelector/tolerations           |"
+  echo "  |  4. Let's Encrypt rate limit hit (5 certs/week per domain)      |"
+  echo "  |     → wait 1 week or use staging server for testing             |"
+  echo "  |                                                                  |"
+  echo "  |  Debug commands:                                                 |"
+  echo "  |    kubectl describe certificate/tools-wildcard -n ingress-nginx  |"
+  echo "  |    kubectl describe certificaterequest -n ingress-nginx          |"
+  echo "  |    kubectl describe challenge -n ingress-nginx                   |"
+  echo "  |    kubectl logs -n cert-manager -l app=cert-manager -f          |"
+  echo "  └------------------------------------------------------------------┘"
   echo ""
   log_warn "Re-run after fixing: bash scripts/deploy.sh --cloud=aws --start-from=09"
   exit 1
 fi
 
-# ── Apply ingress rules (from tools/ingresses/ — single source of truth) ──────
+# -- Apply ingress rules (from tools/ingresses/ — single source of truth) ------
 # tools/ingresses/*.yaml.gotmpl use {{ .Values.domain }} for Helmfile.
 # Shell scripts use envsubst with a helper that converts gotmpl → shell vars.
 echo ""
@@ -287,7 +290,8 @@ log_ok "Grafana ingress updated"
 log_info "Updating Jenkins URL to https://jenkins.${DOMAIN}..."
 cat > /tmp/jenkins-domain.yaml <<JVALS
 controller:
-  adminPassword: ${JENKINS_ADMIN_PASSWORD:-}
+  admin:
+    password: ${JENKINS_ADMIN_PASSWORD:-}
   jenkinsUrl: "https://jenkins.${DOMAIN}"
 JVALS
 helm upgrade jenkins jenkins/jenkins -n jenkins \
@@ -297,7 +301,7 @@ helm upgrade jenkins jenkins/jenkins -n jenkins \
 rm -f /tmp/jenkins-domain.yaml
 log_ok "Jenkins URL updated"
 
-# ── Verify ────────────────────────────────────────────────────────────────────
+# -- Verify --------------------------------------------------------------------
 echo ""
 log_info "Certificate status:"
 kubectl get certificate -n ingress-nginx
@@ -307,9 +311,9 @@ log_info "Ingress rules:"
 kubectl get ingress -A
 
 echo ""
-echo "══════════════════════════════════════════════════════"
+echo "======================================================"
 echo "  TLS setup complete"
-echo "══════════════════════════════════════════════════════"
+echo "======================================================"
 echo ""
 echo "  https://jenkins.${DOMAIN}"
 echo "  https://argocd.${DOMAIN}"
@@ -317,6 +321,6 @@ echo "  https://grafana.${DOMAIN}"
 echo "  https://vault.${DOMAIN}"
 echo "  https://harbor.${DOMAIN}"
 echo "  https://sonarqube.${DOMAIN}"
-echo "══════════════════════════════════════════════════════"
+echo "======================================================"
 
 log_success "STEP 09"

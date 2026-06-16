@@ -1,14 +1,9 @@
 # ingress-nginx AWS overlay values
-# Configures an AWS Network Load Balancer (NLB) via service annotations.
+# We use a Terraform-managed NLB that forwards to NodePort 30080/30443.
+# No AWS Load Balancer Controller needed — NodePort type is sufficient.
 controller:
-  config:
-    use-proxy-protocol: "true"   # required for NLB to pass real client IPs
-
   service:
-    type: LoadBalancer
-    annotations:
-      service.beta.kubernetes.io/aws-load-balancer-type: "external"
-      service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: "instance"
-      service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing"
-      service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
-      service.beta.kubernetes.io/aws-load-balancer-proxy-protocol: "*"
+    type: NodePort               # NLB → NodePort (managed by Terraform, not k8s)
+    nodePorts:
+      http: 30080
+      https: 30443

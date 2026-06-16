@@ -14,7 +14,7 @@ LB_ENDPOINT="${LB_IP:-${NLB_DNS:-}}"
 check_vars BASTION_IP SSH_KEY
 [ -n "$LB_ENDPOINT" ] || { log_error "LB_IP or NLB_DNS not set"; exit 1; }
 
-# ── Sorry Page ────────────────────────────────────────────────────────────────
+# -- Sorry Page ----------------------------------------------------------------
 echo ""
 log_info "Deploying Sorry Page..."
 
@@ -118,7 +118,7 @@ YAML
 kubectl rollout status deployment/sorry-page -n ingress-nginx --timeout=60s
 log_ok "Sorry Page deployed"
 
-# ── NGINX Ingress ─────────────────────────────────────────────────────────────
+# -- NGINX Ingress ------------------------------------------------------------─
 echo ""
 log_info "Deploying NGINX Ingress..."
 
@@ -137,19 +137,25 @@ INGRESS_STATUS=$(kubectl get deployment ingress-nginx-controller \
 
 if [ "$INGRESS_STATUS" = "1/1" ]; then
   log_skip "NGINX Ingress already running — upgrading config..."
+  # No --wait: Service type=LoadBalancer never gets EXTERNAL-IP (we use NLB),
+  # so --wait would time out. Controller is already confirmed ready above.
   helm upgrade ingress-nginx ingress-nginx/ingress-nginx \
     -n ingress-nginx \
     "${_nginx_flags[@]}" \
-    --timeout 5m --wait
+    --timeout 5m
 else
+  # No --wait: Service type=LoadBalancer never gets EXTERNAL-IP (we use NLB).
   helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
     -n ingress-nginx --create-namespace \
     "${_nginx_flags[@]}" \
-    --timeout 5m --wait
+    --timeout 5m
+  # Wait for controller deployment instead
+  kubectl rollout status deployment/ingress-nginx-controller \
+    -n ingress-nginx --timeout=3m
   log_ok "NGINX Ingress deployed"
 fi
 
-# ── Verify ────────────────────────────────────────────────────────────────────
+# -- Verify --------------------------------------------------------------------
 echo ""
 log_info "Verifying NGINX Ingress..."
 kubectl get pods -n ingress-nginx

@@ -28,7 +28,7 @@ if command -v docker &>/dev/null && docker info &>/dev/null 2>&1; then
   USE_DOCKER=true
 fi
 
-# ── Generate or locate inventory ──────────────────────────────────────────────
+# -- Generate or locate inventory ----------------------------------------------
 if [[ "$CLOUD" == "aws" ]]; then
   INVENTORY_FILE="${BASE_DIR}/platform/kubespray/inventory.ini"
   log_info "Generating Kubespray inventory from Terraform outputs..."
@@ -40,7 +40,7 @@ else
   [ -f "$INVENTORY_FILE" ] || { log_error "inventory.ini not found: $INVENTORY_FILE"; exit 1; }
 fi
 
-# ── Clone / reuse Kubespray (only needed for local venv fallback) ─────────────
+# -- Clone / reuse Kubespray (only needed for local venv fallback) ------------─
 echo ""
 log_info "Setting up Kubespray ${KUBESPRAY_VERSION}..."
 
@@ -71,13 +71,27 @@ else
   docker pull "quay.io/kubespray/kubespray:${KUBESPRAY_IMAGE_TAG}" 2>/dev/null || true
 fi
 
-# ── Inventory setup ───────────────────────────────────────────────────────────
-KUBE_INVENTORY_DIR="$KUBESPRAY_REPO_DIR/inventory/devsecops"
-mkdir -p "$KUBE_INVENTORY_DIR"
-cp -rp "$KUBESPRAY_REPO_DIR/inventory/sample/group_vars" "$KUBE_INVENTORY_DIR/" 2>/dev/null || true
+# -- Inventory setup ----------------------------------------------------------─
+# Docker mode: kubespray-src is NOT cloned on host — use a standalone dir.
+# Venv mode:   kubespray-src exists — keep using it (sample group_vars available).
+if [ "$USE_DOCKER" = true ]; then
+  KUBE_INVENTORY_DIR="${BASE_DIR}/platform/kubespray/inventory-docker"
+  mkdir -p "$KUBE_INVENTORY_DIR/group_vars/k8s_cluster" \
+           "$KUBE_INVENTORY_DIR/group_vars/all" \
+           "$KUBE_INVENTORY_DIR/group_vars/etcd"
+  # Copy sample group_vars from Docker image (has all kubespray defaults)
+  docker run --rm \
+    "quay.io/kubespray/kubespray:${KUBESPRAY_IMAGE_TAG}" \
+    tar cf - -C /kubespray inventory/sample/group_vars 2>/dev/null \
+    | tar xf - --strip-components=3 -C "$KUBE_INVENTORY_DIR/" 2>/dev/null || true
+else
+  KUBE_INVENTORY_DIR="$KUBESPRAY_REPO_DIR/inventory/devsecops"
+  mkdir -p "$KUBE_INVENTORY_DIR"
+  cp -rp "$KUBESPRAY_REPO_DIR/inventory/sample/group_vars" "$KUBE_INVENTORY_DIR/" 2>/dev/null || true
+fi
 cp "$INVENTORY_FILE" "$KUBE_INVENTORY_DIR/hosts.ini"
 
-# ── Supplementary addresses for TLS SAN ──────────────────────────────────────
+# -- Supplementary addresses for TLS SAN --------------------------------------
 SUPPLEMENTARY_ADDRESSES=""
 if [[ "$CLOUD" == "aws" ]]; then
   CONTROL_PLANE_IPS=$(terraform -chdir="$ENV_DIR" output -json control_plane_private_ips \
@@ -94,7 +108,7 @@ else
   FIRST_CP="$MASTER_IP"
 fi
 
-# ── Cluster vars ──────────────────────────────────────────────────────────────
+# -- Cluster vars --------------------------------------------------------------
 # Dùng terminator khác nhau để tránh nhầm lẫn với EOF của các heredoc khác
 cat > "$KUBE_INVENTORY_DIR/group_vars/k8s_cluster/k8s-cluster.yml" <<KUBECLUSTER
 kube_version: ${K8S_VERSION}
@@ -117,7 +131,7 @@ loadbalancer_apiserver_localhost: true
 loadbalancer_apiserver_port: 6443
 ALLCONFIG
 
-# ── Wait for bastion SSH ──────────────────────────────────────────────────────
+# -- Wait for bastion SSH ------------------------------------------------------
 echo ""
 log_info "Waiting for SSH access to bastion..."
 
@@ -136,7 +150,7 @@ for i in $(seq 1 40); do
 done
 [ "$SSH_READY" = false ] && { log_error "SSH bastion not reachable"; exit 1; }
 
-# ── Helper: run command on master via bastion ─────────────────────────────────
+# -- Helper: run command on master via bastion --------------------------------─
 _ssh_master() {
   if [[ "$CLOUD" == "azure" ]]; then
     ssh -i "$SSH_KEY" \
@@ -151,7 +165,7 @@ _ssh_master() {
   fi
 }
 
-# ── Check cluster health (skip Kubespray if already healthy) ──────────────────
+# -- Check cluster health (skip Kubespray if already healthy) ------------------
 echo ""
 log_info "Checking existing cluster health..."
 
@@ -175,7 +189,7 @@ if _ssh_master "sudo kubectl get nodes --kubeconfig /etc/kubernetes/admin.conf" 
   fi
 fi
 
-# ── Run Kubespray ─────────────────────────────────────────────────────────────
+# -- Run Kubespray ------------------------------------------------------------─
 if [ "$NEED_DEPLOY" = true ]; then
   PLAYBOOK="${KUBESPRAY_PLAYBOOK:-cluster.yml}"
 
@@ -237,7 +251,7 @@ if [ "$NEED_DEPLOY" = true ]; then
   fi
 fi
 
-# ── Fetch kubeconfig ──────────────────────────────────────────────────────────
+# -- Fetch kubeconfig ----------------------------------------------------------
 echo ""
 log_info "Fetching kubeconfig from control plane..."
 mkdir -p "$(dirname "$KUBECONFIG")"
@@ -254,7 +268,7 @@ kubectl config set-cluster "$CLUSTER_NAME_K8S" \
 export KUBECONFIG="$KUBECONFIG"
 log_ok "Kubeconfig saved: $KUBECONFIG"
 
-# ── Open tunnel so subsequent steps can use kubectl ───────────────────────────
+# -- Open tunnel so subsequent steps can use kubectl --------------------------─
 echo ""
 log_info "Opening kubectl tunnel..."
 pkill -f "L 6443:${FIRST_CP}:6443" 2>/dev/null || true
@@ -279,7 +293,7 @@ fi
 sleep 5
 kubectl get nodes || log_warn "Tunnel not yet ready — continuing"
 
-# ── Azure: patch cloud ProviderID on nodes ────────────────────────────────────
+# -- Azure: patch cloud ProviderID on nodes ------------------------------------
 if [[ "$CLOUD" == "azure" ]]; then
   echo ""
   log_info "Patching Azure cloud ProviderID on nodes..."
@@ -305,7 +319,7 @@ if [[ "$CLOUD" == "azure" ]]; then
   done
 fi
 
-# ── AWS: install EBS CSI driver + StorageClass ────────────────────────────────
+# -- AWS: install EBS CSI driver + StorageClass --------------------------------
 if [[ "$CLOUD" == "aws" ]]; then
   echo ""
   log_info "Installing AWS EBS CSI driver..."
@@ -333,7 +347,7 @@ YAML
   log_ok "EBS CSI driver + StorageClass installed"
 fi
 
-# ── Install Helm (if not already) ─────────────────────────────────────────────
+# -- Install Helm (if not already) --------------------------------------------─
 check_helm
 
 echo ""

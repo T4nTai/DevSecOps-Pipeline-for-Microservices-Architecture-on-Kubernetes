@@ -1,11 +1,6 @@
-variable "zone_id" {
-  type        = string
-  description = "Route53 hosted zone ID — passed in from the DNS state via terraform_remote_state"
-}
-
 variable "domain_name" {
   type        = string
-  description = "Domain name managed by the zone (e.g. tools.example.com)"
+  description = "Domain name for the hosted zone (e.g. tools.example.com)"
 
   validation {
     condition     = length(var.domain_name) > 0

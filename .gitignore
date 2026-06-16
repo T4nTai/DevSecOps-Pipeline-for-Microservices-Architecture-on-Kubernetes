@@ -42,12 +42,16 @@ kubespray/.venv/
 kubespray/kubespray-src/
 platform/kubespray/.venv/
 platform/kubespray/kubespray-src/
+platform/kubespray/inventory-docker/
 
 # Runtime state — never commit
 .deploy-state.env
 .env
 .env.secret
 .kubeconfig
+
+# Local-only scripts — not for version control
+scripts/destroy-aws.sh
 
 # App build artifacts
 app/src/**/.gradle/

@@ -14,6 +14,10 @@ spec:
       labels:
         app: {{ .Release.Name }}
     spec:
+      {{- if .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- end }}
       {{- if .Values.image.pullSecret }}
       imagePullSecrets:
         - name: {{ .Values.image.pullSecret }}
@@ -22,6 +26,10 @@ spec:
         - name: {{ .Release.Name }}
           image: {{ include "microservice.fullImage" . }}:{{ .Values.image.tag }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- if .Values.containerSecurityContext }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          {{- end }}
           ports:
             - containerPort: {{ .Values.port.container }}
           {{- if .Values.env }}

@@ -35,11 +35,11 @@ unset _ENV_FILE
 if [[ "$CLOUD" == "azure" ]]; then
   SSH_USER="${SSH_USER:-azureuser}"
   SSH_KEY="${SSH_KEY:-/tmp/ssh/id_rsa}"
-  TF_DIR="$SCRIPT_DIR/terraform/azure/envs/$CLUSTER"
+  TF_DIR="$SCRIPT_DIR/infra/azure/envs/$CLUSTER"
 else
   SSH_USER="${SSH_USER:-ubuntu}"
   SSH_KEY="${SSH_KEY:-$HOME/.ssh/id_ed25519}"
-  TF_DIR="$SCRIPT_DIR/terraform/aws/envs/$CLUSTER"
+  TF_DIR="$SCRIPT_DIR/infra/aws/envs/$CLUSTER"
 fi
 
 PID_FILE="/tmp/devsecops-kubectl-${CLOUD}-${CLUSTER}.pid"

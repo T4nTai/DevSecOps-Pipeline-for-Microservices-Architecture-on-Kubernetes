@@ -14,6 +14,12 @@ def call(Map config) {
             }
         }
 
+        options {
+            timeout(time: 45, unit: 'MINUTES')
+            disableConcurrentBuilds()
+            buildDiscarder(logRotator(numToKeepStr: '10'))
+        }
+
         triggers {
             githubPush()
         }
@@ -24,17 +30,13 @@ def call(Map config) {
             HARBOR_PROJECT = 'library'
             VAULT_ADDR     = 'http://vault.vault.svc.cluster.local:8200'
             SONAR_HOST     = 'http://sonarqube.sonarqube.svc.cluster.local:9000'
-            // IMAGE_TAG and FULL_IMAGE are set dynamically in 'Load Secrets'
-            // based on branch: develop → dev-N, main → N
         }
 
         stages {
 
-            // ── Always: load secrets + set branch-aware image tag ─────────────
             stage('Load Secrets') {
                 steps {
                     script {
-                        // Branch-aware tag: develop → dev-42, main → 42
                         def branch = env.BRANCH_NAME ?: 'develop'
                         env.IMAGE_TAG       = (branch == 'main') ? "${BUILD_NUMBER}" : "dev-${BUILD_NUMBER}"
                         env.MANIFEST_BRANCH = branch
@@ -63,6 +65,7 @@ def call(Map config) {
                             env.HARBOR_REGISTRY = env.HARBOR_REGISTRY
                             env.SONAR_TOKEN     = env.SONAR_TOKEN
                             env.FULL_IMAGE      = "${env.HARBOR_REGISTRY}/${env.HARBOR_PROJECT}/${imageName}:${env.IMAGE_TAG}"
+                            env.CACHE_REPO      = "${env.HARBOR_REGISTRY}/${env.HARBOR_PROJECT}/cache"
                         }
 
                         echo "Branch: ${branch} | Image: ${env.FULL_IMAGE}"
@@ -85,7 +88,6 @@ def call(Map config) {
 
             // ══════════════════════════════════════════════════════════════════
             // PR PIPELINE — lightweight feedback, no build/push
-            // Triggered when opening/updating a PR toward develop or main
             // ══════════════════════════════════════════════════════════════════
 
             stage('PR — Unit Tests') {
@@ -99,46 +101,20 @@ def call(Map config) {
                 }
             }
 
-            stage('PR — SonarQube (SAST)') {
+            stage('PR — Security Scan') {
                 when { changeRequest() }
-                steps {
-                    container('sonar-scanner') {
-                        withSonarQubeEnv('sonarqube') {
-                            script {
-                                def extraArgs = (language == 'golang')
-                                    ? "-Dsonar.go.coverage.reportPaths=${appDir}/coverage.out"
-                                    : ''
-                                sh """
-                                    sonar-scanner \
-                                      -Dsonar.projectKey=${sonarKey} \
-                                      -Dsonar.sources=${appDir} \
-                                      -Dsonar.token=\${SONAR_TOKEN} \
-                                      -Dsonar.host.url=\${SONAR_HOST} \
-                                      -Dsonar.scm.disabled=true \
-                                      ${extraArgs}
-                                """
-                            }
-                        }
-                        timeout(time: 15, unit: 'MINUTES') {
-                            waitForQualityGate abortPipeline: true
-                        }
+                parallel {
+                    stage('SonarQube (SAST)') {
+                        steps { runSonarScan(appDir, sonarKey, language) }
                     }
-                }
-            }
-
-            stage('PR — Checkov (IaC)') {
-                when { changeRequest() }
-                steps {
-                    container('checkov') {
-                        sh 'checkov -d infra/ --output cli --soft-fail --quiet'
+                    stage('Checkov (IaC)') {
+                        steps { runCheckov() }
                     }
                 }
             }
 
             // ══════════════════════════════════════════════════════════════════
             // FULL PIPELINE — runs on merge to develop or main
-            // develop: build dev image, push dev tag, update manifest → develop
-            // main:    build prod image, push prod tag, update manifest → main
             // ══════════════════════════════════════════════════════════════════
 
             stage('Build Image') {
@@ -151,9 +127,8 @@ def call(Map config) {
                               --dockerfile="\${WORKSPACE}/${appDir}/Dockerfile" \
                               --no-push \
                               --tar-path /workspace/image.tar \
-                              --insecure \
-                              --skip-tls-verify \
-                              --cache=false
+                              --cache=true \
+                              --cache-repo=\${CACHE_REPO}
                         """
                     }
                 }
@@ -175,37 +150,11 @@ def call(Map config) {
                 parallel {
 
                     stage('Checkov — IaC') {
-                        steps {
-                            container('checkov') {
-                                sh 'checkov -d infra/ --output cli --soft-fail --quiet'
-                            }
-                        }
+                        steps { runCheckov() }
                     }
 
                     stage('SonarQube — SAST') {
-                        steps {
-                            container('sonar-scanner') {
-                                withSonarQubeEnv('sonarqube') {
-                                    script {
-                                        def extraArgs = (language == 'golang')
-                                            ? "-Dsonar.go.coverage.reportPaths=${appDir}/coverage.out"
-                                            : ''
-                                        sh """
-                                            sonar-scanner \
-                                              -Dsonar.projectKey=${sonarKey} \
-                                              -Dsonar.sources=${appDir} \
-                                              -Dsonar.token=\${SONAR_TOKEN} \
-                                              -Dsonar.host.url=\${SONAR_HOST} \
-                                              -Dsonar.scm.disabled=true \
-                                              ${extraArgs}
-                                        """
-                                    }
-                                }
-                                timeout(time: 15, unit: 'MINUTES') {
-                                    waitForQualityGate abortPipeline: true
-                                }
-                            }
-                        }
+                        steps { runSonarScan(appDir, sonarKey, language) }
                     }
 
                     stage('Trivy — Image Scan') {
@@ -213,10 +162,24 @@ def call(Map config) {
                             container('trivy') {
                                 sh """
                                     trivy image \
-                                      --exit-code 0 \
+                                      --exit-code 1 \
                                       --severity HIGH,CRITICAL \
                                       --no-progress \
+                                      --ignorefile .trivyignore \
                                       --input /workspace/image.tar
+                                """
+                            }
+                        }
+                    }
+
+                    stage('Trivy — K8s Manifests') {
+                        steps {
+                            container('trivy') {
+                                sh """
+                                    trivy config \
+                                      --exit-code 1 \
+                                      --severity HIGH,CRITICAL \
+                                      k8s/helm/
                                 """
                             }
                         }
@@ -229,10 +192,7 @@ def call(Map config) {
                 when { anyOf { branch 'develop'; branch 'main' } }
                 steps {
                     container('crane') {
-                        sh """
-                            crane push /workspace/image.tar \${FULL_IMAGE} \
-                              --insecure
-                        """
+                        sh "crane push /workspace/image.tar \${FULL_IMAGE}"
                     }
                 }
             }
@@ -251,7 +211,6 @@ def call(Map config) {
                     }
                     container('yq') {
                         sh """
-                            echo "Updating ${manifestFile} → image.tag = \${IMAGE_TAG}"
                             yq e '.image.tag = "\${IMAGE_TAG}"' -i ${manifestFile}
                         """
                     }
@@ -269,6 +228,9 @@ def call(Map config) {
         }
 
         post {
+            always {
+                cleanWs()
+            }
             success {
                 script {
                     if (env.CHANGE_ID) {
@@ -284,6 +246,8 @@ def call(Map config) {
         }
     }
 }
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 def runTests(String language) {
     switch (language) {
@@ -304,5 +268,35 @@ def runTests(String language) {
             break
         default:
             echo "No test command defined for language: ${language}"
+    }
+}
+
+def runSonarScan(String appDir, String sonarKey, String language) {
+    container('sonar-scanner') {
+        withSonarQubeEnv('sonarqube') {
+            script {
+                def extraArgs = (language == 'golang')
+                    ? "-Dsonar.go.coverage.reportPaths=${appDir}/coverage.out"
+                    : ''
+                sh """
+                    sonar-scanner \
+                      -Dsonar.projectKey=${sonarKey} \
+                      -Dsonar.sources=${appDir} \
+                      -Dsonar.token=\${SONAR_TOKEN} \
+                      -Dsonar.host.url=\${SONAR_HOST} \
+                      -Dsonar.scm.disabled=true \
+                      ${extraArgs}
+                """
+            }
+        }
+        timeout(time: 15, unit: 'MINUTES') {
+            waitForQualityGate abortPipeline: true
+        }
+    }
+}
+
+def runCheckov() {
+    container('checkov') {
+        sh 'checkov -d infra/ --output cli --quiet'
     }
 }

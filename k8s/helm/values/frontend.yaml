@@ -51,7 +51,7 @@ env:
 canary:
   enabled: true
   trafficRouting:
-    enabled: true       # uses nginx ingress for traffic splitting
+    enabled: true       
   steps:
     - setWeight: 20
     - pause: {}
