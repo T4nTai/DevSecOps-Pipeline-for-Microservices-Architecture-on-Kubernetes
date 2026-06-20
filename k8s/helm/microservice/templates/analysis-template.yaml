@@ -1,0 +1,24 @@
+{{- if and .Values.canary.enabled .Values.canary.analysis.enabled }}
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: {{ .Release.Name }}-success-rate
+  namespace: {{ .Values.namespace }}
+spec:
+  metrics:
+    - name: success-rate
+      interval: {{ .Values.canary.analysis.interval }}
+      count: {{ .Values.canary.analysis.count }}
+      # Rollback nếu tỉ lệ thành công < successRate (mặc định 95%)
+      successCondition: result[0] >= {{ .Values.canary.analysis.successRate }}
+      failureLimit: {{ .Values.canary.analysis.failureLimit }}
+      provider:
+        prometheus:
+          address: {{ .Values.canary.analysis.prometheusAddress }}
+          query: |
+            (
+              sum(rate(nginx_ingress_controller_requests{ingress="{{ .Release.Name }}",namespace="{{ .Values.namespace }}",status!~"5.."}[2m]))
+              /
+              sum(rate(nginx_ingress_controller_requests{ingress="{{ .Release.Name }}",namespace="{{ .Values.namespace }}"}[2m]))
+            ) or vector(1)
+{{- end }}

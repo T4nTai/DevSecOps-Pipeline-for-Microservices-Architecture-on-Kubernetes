@@ -1,0 +1,83 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: devsecops-alerts
+  namespace: monitoring
+  labels:
+    release: prometheus   # must match kube-prometheus-stack's ruleSelector
+spec:
+  groups:
+
+    - name: node.rules
+      rules:
+        - alert: NodeNotReady
+          expr: kube_node_status_condition{condition="Ready",status="true"} == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Node {{ $labels.node }} not ready"
+            description: >
+              Node {{ $labels.node }} has been in NotReady state for more than 5 minutes.
+
+        - alert: HighMemoryUsage
+          expr: >
+            (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) > 0.90
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High memory usage on {{ $labels.instance }}"
+            description: >
+              Node {{ $labels.instance }} memory usage is {{ $value | humanizePercentage }},
+              exceeding the 90% threshold.
+
+    - name: pod.rules
+      rules:
+        - alert: PodCrashLooping
+          expr: increase(kube_pod_container_status_restarts_total[15m]) > 3
+          for: 0m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} crash looping"
+            description: >
+              Container {{ $labels.container }} in pod {{ $labels.pod }}
+              (namespace {{ $labels.namespace }}) has restarted
+              {{ $value | printf "%.0f" }} times in the last 15 minutes.
+
+    - name: nginx.rules
+      rules:
+        - alert: HighErrorRate
+          expr: >
+            sum by (ingress, namespace, service) (
+              rate(nginx_ingress_controller_requests{status=~"5.."}[5m])
+            )
+            /
+            sum by (ingress, namespace, service) (
+              rate(nginx_ingress_controller_requests[5m])
+            )
+            > 0.05
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "High 5xx rate on ingress {{ $labels.namespace }}/{{ $labels.ingress }}"
+            description: >
+              Ingress {{ $labels.ingress }} (namespace {{ $labels.namespace }},
+              service {{ $labels.service }}) has a 5xx error rate of
+              {{ $value | humanizePercentage }} over the last 5 minutes.
+
+    - name: cert.rules
+      rules:
+        - alert: CertExpiring
+          expr: >
+            (certmanager_certificate_expiration_timestamp_seconds - time()) / 86400 < 14
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "Certificate {{ $labels.namespace }}/{{ $labels.name }} expiring soon"
+            description: >
+              Certificate {{ $labels.name }} in namespace {{ $labels.namespace }}
+              expires in {{ $value | printf "%.1f" }} days.

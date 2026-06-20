@@ -263,29 +263,6 @@ _apply_ingress() {
 _apply_ingress "$BASE_DIR/tools/ingresses/argocd.yaml"   ArgoCD
 _apply_ingress "$BASE_DIR/tools/ingresses/jenkins.yaml"  Jenkins
 
-# Grafana ingress is managed by kube-prometheus-stack Helm chart (enabled in monitoring.yaml.gotmpl).
-# Re-run Helm upgrade with rendered values to pick up the domain.
-log_info "Upgrading Prometheus stack (Grafana domain: grafana.${DOMAIN})..."
-cat > /tmp/grafana-values.yaml <<GVALS
-grafana:
-  adminPassword: ${GRAFANA_ADMIN_PASSWORD:-}
-  ingress:
-    hosts: ["grafana.${DOMAIN}"]
-    tls:
-      - hosts: ["grafana.${DOMAIN}"]
-        secretName: tools-wildcard-tls
-  grafana.ini:
-    server:
-      root_url: "https://grafana.${DOMAIN}"
-GVALS
-helm upgrade prometheus prometheus-community/kube-prometheus-stack \
-  -n monitoring \
-  -f /tmp/grafana-values.yaml \
-  --reuse-values \
-  --timeout 5m
-rm -f /tmp/grafana-values.yaml
-log_ok "Grafana ingress updated"
-
 # Jenkins domain + URL update via Helm values
 log_info "Updating Jenkins URL to https://jenkins.${DOMAIN}..."
 cat > /tmp/jenkins-domain.yaml <<JVALS

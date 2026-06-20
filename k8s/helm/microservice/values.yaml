@@ -54,6 +54,13 @@ canary:
   enabled: false
   trafficRouting:
     enabled: false      # enable nginx-based traffic splitting
+  analysis:
+    enabled: false
+    prometheusAddress: "http://prometheus-kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090"
+    successRate: "0.95"   # rollback nếu error rate > 5%
+    interval: "30s"
+    count: 3              # đo 3 lần liên tiếp trước khi promote
+    failureLimit: 1       # cho phép 1 lần đo thất bại trước khi abort
   steps:
     - setWeight: 20
     - pause: {}

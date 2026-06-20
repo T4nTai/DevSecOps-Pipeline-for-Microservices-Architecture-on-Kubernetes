@@ -58,7 +58,7 @@ if [[ "$CLOUD" == "azure" ]]; then
   export KUBESPRAY_VERSION="${KUBESPRAY_VERSION:-v2.26.0}"
 else
   export AWS_REGION="${AWS_REGION:-ap-southeast-1}"
-  export DOMAIN="${DOMAIN:-tools.votantai.me}"
+  export DOMAIN="${DOMAIN:-}"
   export ACME_EMAIL="${ACME_EMAIL:-}"
   export ENV_DIR="${ENV_DIR:-${BASE_DIR}/infra/aws/envs/${CLUSTER}}"
   export ADMIN_USER="${ADMIN_USER:-ubuntu}"
@@ -71,6 +71,16 @@ fi
 if [ -f "$SECRET_FILE" ]; then
   log_info "Loading .env.secret..."
   set -a; source "$SECRET_FILE"; set +a
+fi
+
+# -- Validate required env vars -----------------------------------------------─
+if [[ "$CLOUD" == "aws" ]] && [ -z "${DOMAIN:-}" ]; then
+  log_error "DOMAIN is required. Add to .env.secret: DOMAIN=\"your-domain.com\""
+  exit 1
+fi
+if [[ "$CLOUD" == "aws" ]] && [ -z "${ACME_EMAIL:-}" ]; then
+  log_error "ACME_EMAIL is required. Add to .env.secret: ACME_EMAIL=\"you@example.com\""
+  exit 1
 fi
 
 # -- Write SSH key from env vars ----------------------------------------------─

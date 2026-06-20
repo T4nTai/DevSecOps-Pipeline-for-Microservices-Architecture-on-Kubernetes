@@ -80,7 +80,9 @@ spec:
           stableIngress: frontend
       steps:
         - setWeight: 20
-        - pause: {}
+        - analysis:
+            templates:
+              - templateName: frontend-success-rate
         - setWeight: 50
         - pause: {duration: 10m}
         - setWeight: 80

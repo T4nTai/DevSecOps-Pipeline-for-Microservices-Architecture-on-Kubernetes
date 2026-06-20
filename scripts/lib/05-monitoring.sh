@@ -114,6 +114,28 @@ else
   log_ok "Promtail deployed"
 fi
 
+# -- Apply PrometheusRule + AlertmanagerConfig ---------------------------------
+echo ""
+log_info "Applying NetworkPolicy for monitoring namespace..."
+kubectl apply -f "$BASE_DIR/tools/monitoring/network-policy.yaml"
+log_ok "NetworkPolicy applied"
+
+log_info "Applying alert rules..."
+kubectl apply -f "$BASE_DIR/tools/monitoring/prometheus-rules.yaml"
+log_ok "PrometheusRule applied"
+
+log_info "Applying AlertManager Gmail config..."
+if [ -z "${ALERT_TO_EMAIL:-}" ] || [ -z "${ALERT_FROM_EMAIL:-}" ]; then
+  log_warn "ALERT_TO_EMAIL or ALERT_FROM_EMAIL not set — skipping AlertmanagerConfig"
+  log_warn "Add to .env.secret and re-run: bash scripts/deploy.sh --cloud=${CLOUD} --start-from=05"
+else
+  envsubst '${ALERT_TO_EMAIL} ${ALERT_FROM_EMAIL}' \
+    < "$BASE_DIR/tools/monitoring/alertmanager-gmail.yaml" \
+    | kubectl apply -f -
+  log_ok "AlertmanagerConfig applied (to: ${ALERT_TO_EMAIL}, from: ${ALERT_FROM_EMAIL})"
+  log_warn "Gmail App Password secret will be created when running k8s/vault/setup-vault.sh (after step 12)"
+fi
+
 # -- Verify --------------------------------------------------------------------
 echo ""
 log_info "Monitoring pods:"

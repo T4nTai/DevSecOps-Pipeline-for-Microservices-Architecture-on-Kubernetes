@@ -17,9 +17,7 @@ spec:
             ingressHost: "app-dev.${DOMAIN}"
           - service: productcatalogservice
             ingressHost: ""
-          - service: cartservice
-            ingressHost: ""
-          - service: redis-cart
+          - service: adservice
             ingressHost: ""
 
   template:

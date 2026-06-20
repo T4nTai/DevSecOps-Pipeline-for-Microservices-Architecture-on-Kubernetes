@@ -1,6 +1,8 @@
 image:
-  repository: gcr.io/google-samples/microservices-demo/adservice
-  tag: "v0.10.1"
+  repository: library/adservice
+  tag: "latest"
+  pullSecret: harbor-credentials
+  harborImage: true
 
 port:
   container: 9555

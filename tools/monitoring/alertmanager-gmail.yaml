@@ -1,0 +1,74 @@
+# AlertmanagerConfig — Gmail receiver via SMTP
+# Password is read from the K8s Secret "alertmanager-gmail-secret" (see below).
+#
+# One-time setup (run after Vault is unsealed):
+#   vault kv put secret/monitoring/gmail \
+#     app_password="<your-16-char-app-password>"
+#
+#   kubectl create secret generic alertmanager-gmail-secret \
+#     -n monitoring \
+#     --from-literal=password="$(vault kv get -field=app_password secret/monitoring/gmail)"
+#
+# How to get a Gmail App Password:
+#   Google Account → Security → 2-Step Verification → App passwords
+---
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: AlertmanagerConfig
+metadata:
+  name: gmail-receiver
+  namespace: monitoring
+  labels:
+    app: alertmanager-config
+spec:
+  route:
+    receiver: gmail
+    groupBy:
+      - alertname
+      - namespace
+      - severity
+    groupWait: 30s
+    groupInterval: 5m
+    repeatInterval: 4h
+    matchers:
+      - name: severity
+        matchType: =~
+        value: "warning|critical"
+
+  receivers:
+    - name: gmail
+      emailConfigs:
+        - to: "${ALERT_TO_EMAIL}"
+          from: "${ALERT_FROM_EMAIL}"
+          smarthost: "smtp.gmail.com:587"
+          authUsername: "${ALERT_FROM_EMAIL}"
+          authPassword:
+            name: alertmanager-gmail-secret
+            key: password
+          requireTLS: true
+          tlsConfig:
+            insecureSkipVerify: false
+          headers:
+            - key: Subject
+              value: '[{{ .Status | toUpper }}] {{ .CommonLabels.alertname }} — {{ .CommonLabels.namespace }}'
+          html: |
+            <b>{{ .Status | toUpper }}</b> — {{ .CommonLabels.alertname }}<br>
+            <b>Namespace:</b> {{ .CommonLabels.namespace }}<br>
+            <b>Severity:</b> {{ .CommonLabels.severity }}<br>
+            {{ range .Alerts }}
+            <hr>
+            <b>Summary:</b> {{ .Annotations.summary }}<br>
+            <b>Description:</b> {{ .Annotations.description }}<br>
+            <b>Started:</b> {{ .StartsAt.Format "2006-01-02 15:04:05 UTC" }}<br>
+            {{ end }}
+
+  inhibitRules:
+    # Suppress warning if the same alert is already critical
+    - sourceMatch:
+        - name: severity
+          value: critical
+      targetMatch:
+        - name: severity
+          value: warning
+      equal:
+        - alertname
+        - namespace

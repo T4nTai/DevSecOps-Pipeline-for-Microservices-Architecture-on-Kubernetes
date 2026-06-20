@@ -68,8 +68,11 @@ echo "==> Storing secrets..."
 # Prompt for secrets not yet known
 read -rp "  GitHub username: " GIT_USER
 read -rsp "  GitHub token: " GIT_TOKEN; echo ""
-read -rsp "  SonarQube token (generate at https://sonarqube.${DOMAIN:-tools.votantai.me}): " SONAR_TOKEN; echo ""
+read -rsp "  SonarQube token (generate at https://sonarqube.${DOMAIN:-example.com}): " SONAR_TOKEN; echo ""
 read -rsp "  Harbor admin password: " HARBOR_PASSWORD; echo ""
+echo "  Gmail App Password (Google Account → Security → 2-Step → App passwords)"
+read -rsp "  Gmail App Password (16 chars, leave blank to skip): " GMAIL_APP_PASSWORD; echo ""
+GMAIL_FROM="${ALERT_FROM_EMAIL:-}"
 
 kubectl exec "$VAULT_POD" -n "$VAULT_NS" -- \
   vault kv put secret/git \
@@ -80,17 +83,33 @@ kubectl exec "$VAULT_POD" -n "$VAULT_NS" -- \
   vault kv put secret/harbor \
     username="admin" \
     password="$HARBOR_PASSWORD" \
-    registry="harbor.${DOMAIN:-tools.votantai.me}"
+    registry="harbor.${DOMAIN:-example.com}"
 
 kubectl exec "$VAULT_POD" -n "$VAULT_NS" -- \
   vault kv put secret/sonarqube \
     token="$SONAR_TOKEN" \
-    url="https://sonarqube.${DOMAIN:-tools.votantai.me}"
+    url="https://sonarqube.${DOMAIN:-example.com}"
 
 kubectl exec "$VAULT_POD" -n "$VAULT_NS" -- \
   vault kv put secret/sonarqube-db \
     username="sonar" \
     password="sonar"
+
+if [[ -n "${GMAIL_APP_PASSWORD:-}" && -n "${GMAIL_FROM:-}" ]]; then
+  kubectl exec "$VAULT_POD" -n "$VAULT_NS" -- \
+    vault kv put secret/monitoring/gmail \
+      app_password="$GMAIL_APP_PASSWORD" \
+      from_address="$GMAIL_FROM"
+
+  # Create K8s secret for AlertManager immediately
+  kubectl create secret generic alertmanager-gmail-secret \
+    -n monitoring \
+    --from-literal=password="$GMAIL_APP_PASSWORD" \
+    --dry-run=client -o yaml | kubectl apply -f -
+  echo "  Gmail secret stored in Vault and applied to monitoring namespace."
+else
+  echo "  Skipping Gmail secret (no credentials provided)."
+fi
 
 echo "  Secrets stored."
 
@@ -142,6 +161,6 @@ echo "   ID:   vault-approle"
 echo "   Role ID:   $ROLE_ID"
 echo "   Secret ID: $SECRET_ID"
 echo ""
-echo " Vault UI:    https://vault.${DOMAIN:-tools.votantai.me}"
+echo " Vault UI:    https://vault.${DOMAIN:-example.com}"
 echo " Credentials: $UNSEAL_FILE"
 echo "============================================================"

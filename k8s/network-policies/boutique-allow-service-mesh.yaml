@@ -1,13 +1,10 @@
-# Service-to-service communication rules based on actual call topology:
+# Service-to-service communication rules (3-service topology):
 #
 #   frontend (8080) → productcatalogservice (3550)  gRPC
-#   frontend (8080) → cartservice (7070)             gRPC
-#   cartservice     → redis-cart (6379)              TCP
+#   frontend (8080) → adservice (9555)              gRPC
 #
-# redis-cart is NOT reachable from frontend or productcatalogservice
-# — only cartservice can reach it.
+# ── boutique-dev ──────────────────────────────────────────────────────────────
 ---
-# frontend egress: productcatalogservice + cartservice
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -30,12 +27,11 @@ spec:
     - to:
         - podSelector:
             matchLabels:
-              app: cartservice
+              app: adservice
       ports:
         - protocol: TCP
-          port: 7070
+          port: 9555
 ---
-# productcatalogservice ingress: from frontend only
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -56,16 +52,15 @@ spec:
         - protocol: TCP
           port: 3550
 ---
-# cartservice ingress: from frontend only
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-cartservice-ingress
+  name: allow-adservice-ingress
   namespace: boutique-dev
 spec:
   podSelector:
     matchLabels:
-      app: cartservice
+      app: adservice
   policyTypes:
     - Ingress
   ingress:
@@ -75,51 +70,9 @@ spec:
               app: frontend
       ports:
         - protocol: TCP
-          port: 7070
+          port: 9555
+# ── boutique-prod ─────────────────────────────────────────────────────────────
 ---
-# cartservice egress: redis-cart only
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: allow-cartservice-to-redis
-  namespace: boutique-dev
-spec:
-  podSelector:
-    matchLabels:
-      app: cartservice
-  policyTypes:
-    - Egress
-  egress:
-    - to:
-        - podSelector:
-            matchLabels:
-              app: redis-cart
-      ports:
-        - protocol: TCP
-          port: 6379
----
-# redis-cart ingress: cartservice only
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: allow-redis-ingress
-  namespace: boutique-dev
-spec:
-  podSelector:
-    matchLabels:
-      app: redis-cart
-  policyTypes:
-    - Ingress
-  ingress:
-    - from:
-        - podSelector:
-            matchLabels:
-              app: cartservice
-      ports:
-        - protocol: TCP
-          port: 6379
----
-# ── boutique-prod: same topology ──────────────────────────────────────────────
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -142,10 +95,10 @@ spec:
     - to:
         - podSelector:
             matchLabels:
-              app: cartservice
+              app: adservice
       ports:
         - protocol: TCP
-          port: 7070
+          port: 9555
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -170,12 +123,12 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-cartservice-ingress
+  name: allow-adservice-ingress
   namespace: boutique-prod
 spec:
   podSelector:
     matchLabels:
-      app: cartservice
+      app: adservice
   policyTypes:
     - Ingress
   ingress:
@@ -185,44 +138,4 @@ spec:
               app: frontend
       ports:
         - protocol: TCP
-          port: 7070
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: allow-cartservice-to-redis
-  namespace: boutique-prod
-spec:
-  podSelector:
-    matchLabels:
-      app: cartservice
-  policyTypes:
-    - Egress
-  egress:
-    - to:
-        - podSelector:
-            matchLabels:
-              app: redis-cart
-      ports:
-        - protocol: TCP
-          port: 6379
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: allow-redis-ingress
-  namespace: boutique-prod
-spec:
-  podSelector:
-    matchLabels:
-      app: redis-cart
-  policyTypes:
-    - Ingress
-  ingress:
-    - from:
-        - podSelector:
-            matchLabels:
-              app: cartservice
-      ports:
-        - protocol: TCP
-          port: 6379
+          port: 9555

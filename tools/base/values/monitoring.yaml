@@ -68,6 +68,11 @@ alertmanager:
   service:
     type: ClusterIP
   alertmanagerSpec:
+    # Pick up AlertmanagerConfig CRDs from the monitoring namespace
+    alertmanagerConfigSelector:
+      matchLabels:
+        app: alertmanager-config
+    alertmanagerConfigNamespaceSelector: {}
     resources:
       requests:
         cpu: 50m
