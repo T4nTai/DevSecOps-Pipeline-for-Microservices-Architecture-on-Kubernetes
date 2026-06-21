@@ -255,7 +255,18 @@ def runTests(String language) {
             sh 'go test ./... -v -coverprofile=coverage.out'
             break
         case 'java':
-            sh 'chmod +x gradlew && ./gradlew test --no-daemon'
+            sh '''
+                chmod +x gradlew
+                GRPC_VER="1.79.0"
+                GRPC_HASH="5d76263149978e104742a64c73705fee23f1e3c8"
+                GRPC_BIN="/home/gradle/.gradle/caches/modules-2/files-2.1/io.grpc/protoc-gen-grpc-java/${GRPC_VER}/${GRPC_HASH}/protoc-gen-grpc-java-${GRPC_VER}-linux-x86_64.exe"
+                mkdir -p "$(dirname $GRPC_BIN)"
+                if [ ! -f "$GRPC_BIN" ]; then
+                    curl -sL "https://repo1.maven.org/maven2/io/grpc/protoc-gen-grpc-java/${GRPC_VER}/protoc-gen-grpc-java-${GRPC_VER}-linux-x86_64.exe" -o "$GRPC_BIN"
+                fi
+                chmod +x "$GRPC_BIN"
+                ./gradlew test --no-daemon
+            '''
             break
         case 'nodejs':
             sh 'npm ci && npm test'
