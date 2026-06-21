@@ -76,11 +76,13 @@ def call(Map config) {
             stage('Checkout') {
                 steps {
                     checkout scm
-                    script {
-                        def msg = sh(script: 'git log -1 --format=%B', returnStdout: true).trim()
-                        if (msg.contains('[skip ci]')) {
-                            currentBuild.result = 'NOT_BUILT'
-                            error('[skip ci] detected — skipping build')
+                    container('manifest-updater') {
+                        script {
+                            def msg = sh(script: 'git log -1 --format=%B', returnStdout: true).trim()
+                            if (msg.contains('[skip ci]')) {
+                                currentBuild.result = 'NOT_BUILT'
+                                error('[skip ci] detected — skipping build')
+                            }
                         }
                     }
                 }
