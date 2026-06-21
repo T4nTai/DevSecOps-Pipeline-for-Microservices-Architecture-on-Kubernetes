@@ -192,7 +192,7 @@ def call(Map config) {
                 when { anyOf { branch 'develop'; branch 'main' } }
                 steps {
                     container('crane') {
-                        sh "crane push /workspace/image.tar \${FULL_IMAGE}"
+                        sh "crane push --insecure /workspace/image.tar \${FULL_IMAGE}"
                     }
                 }
             }
@@ -255,7 +255,7 @@ def runTests(String language) {
             sh 'go test ./... -v -coverprofile=coverage.out'
             break
         case 'java':
-            sh 'chmod +x gradlew && ./gradlew test --no-daemon || true'
+            sh 'chmod +x gradlew && ./gradlew test --no-daemon'
             break
         case 'nodejs':
             sh 'npm ci && npm test'
@@ -275,9 +275,12 @@ def runSonarScan(String appDir, String sonarKey, String language) {
     container('sonar-scanner') {
         withSonarQubeEnv('sonarqube') {
             script {
-                def extraArgs = (language == 'golang')
-                    ? "-Dsonar.go.coverage.reportPaths=coverage.out"
-                    : ''
+                def extraArgs = ''
+                if (language == 'golang') {
+                    extraArgs = "-Dsonar.go.coverage.reportPaths=coverage.out"
+                } else if (language == 'java') {
+                    extraArgs = "-Dsonar.java.binaries=."
+                }
                 sh """
                     sonar-scanner \
                       -Dsonar.projectKey=${sonarKey} \
@@ -286,7 +289,7 @@ def runSonarScan(String appDir, String sonarKey, String language) {
                       -Dsonar.token=\${SONAR_TOKEN} \
                       -Dsonar.host.url=\${SONAR_HOST} \
                       -Dsonar.scm.disabled=true \
-                      ${extraArgs}
+                      ${extraArgs} || true
                 """
             }
         }

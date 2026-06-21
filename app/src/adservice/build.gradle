@@ -70,6 +70,17 @@ protobuf {
     }
 }
 
+afterEvaluate {
+    tasks.withType(com.google.protobuf.gradle.GenerateProtoTask).configureEach {
+        doFirst {
+            configurations.getByName("protobufToolsLocator_grpc")
+                .resolvedConfiguration.resolvedArtifacts.each { artifact ->
+                    artifact.file.setExecutable(true)
+                }
+        }
+    }
+}
+
 googleJavaFormat {
     toolVersion '1.35.0'
 }
