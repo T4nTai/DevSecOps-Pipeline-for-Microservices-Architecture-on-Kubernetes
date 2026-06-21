@@ -30,6 +30,18 @@ env:
     value: "false"
   - name: ENABLE_PROFILER
     value: "0"
+podSecurityContext:
+  runAsNonRoot: false
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: false
+
 canary:
   enabled: true
   trafficRouting:
