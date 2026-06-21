@@ -29,7 +29,7 @@ resources:
     memory: "128Mi"
 
 podSecurityContext:
-  runAsNonRoot: true
+  runAsNonRoot: false
   seccompProfile:
     type: RuntimeDefault
 
