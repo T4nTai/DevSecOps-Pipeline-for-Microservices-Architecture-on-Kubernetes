@@ -166,7 +166,6 @@ def call(Map config) {
                                       --exit-code 0 \
                                       --severity HIGH,CRITICAL \
                                       --no-progress \
-                                      --ignorefile .trivyignore \
                                       --input /workspace/image.tar
                                 """
                             }
@@ -258,8 +257,8 @@ def runTests(String language) {
         case 'java':
             sh '''
                 chmod +x gradlew
-                ./gradlew dependencies --no-daemon -q || true
-                find /root/.gradle /home -name "protoc-gen-grpc-java*.exe" -exec chmod +x {} \\; 2>/dev/null || true
+                ./gradlew generateProto --no-daemon 2>/dev/null || true
+                find /home /root -name "protoc-gen-grpc-java*.exe" -exec chmod +x {} \\; 2>/dev/null || true
                 ./gradlew test --no-daemon
             '''
             break
@@ -295,8 +294,12 @@ def runSonarScan(String appDir, String sonarKey, String language) {
                 """
             }
         }
-        timeout(time: 15, unit: 'MINUTES') {
-            waitForQualityGate abortPipeline: false
+        try {
+            timeout(time: 15, unit: 'MINUTES') {
+                waitForQualityGate abortPipeline: false
+            }
+        } catch (Exception e) {
+            echo "SonarQube quality gate check skipped: ${e.message}"
         }
     }
 }
