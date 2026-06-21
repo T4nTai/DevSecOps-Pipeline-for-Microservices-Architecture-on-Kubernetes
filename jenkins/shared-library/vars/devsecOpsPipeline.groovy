@@ -211,7 +211,7 @@ def call(Map config) {
                     }
                     container('yq') {
                         sh """
-                            yq e '.image.tag = "\${IMAGE_TAG}"' -i ${manifestFile}
+                            yq e '.image.tag = strenv(IMAGE_TAG)' -i ${manifestFile}
                         """
                     }
                     container('manifest-updater') {
