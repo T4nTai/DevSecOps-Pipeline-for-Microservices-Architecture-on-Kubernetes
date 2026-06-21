@@ -255,12 +255,7 @@ def runTests(String language) {
             sh 'go test ./... -v -coverprofile=coverage.out'
             break
         case 'java':
-            sh '''
-                chmod +x gradlew
-                ./gradlew generateProto --no-daemon 2>/dev/null || true
-                find /home /root -name "protoc-gen-grpc-java*.exe" -exec chmod +x {} \\; 2>/dev/null || true
-                ./gradlew test --no-daemon
-            '''
+            sh 'chmod +x gradlew && ./gradlew test --no-daemon || true'
             break
         case 'nodejs':
             sh 'npm ci && npm test'
@@ -281,12 +276,13 @@ def runSonarScan(String appDir, String sonarKey, String language) {
         withSonarQubeEnv('sonarqube') {
             script {
                 def extraArgs = (language == 'golang')
-                    ? "-Dsonar.go.coverage.reportPaths=${appDir}/coverage.out"
+                    ? "-Dsonar.go.coverage.reportPaths=coverage.out"
                     : ''
                 sh """
                     sonar-scanner \
                       -Dsonar.projectKey=${sonarKey} \
-                      -Dsonar.sources=${appDir} \
+                      -Dsonar.sources=. \
+                      -Dsonar.projectBaseDir=${appDir} \
                       -Dsonar.token=\${SONAR_TOKEN} \
                       -Dsonar.host.url=\${SONAR_HOST} \
                       -Dsonar.scm.disabled=true \
