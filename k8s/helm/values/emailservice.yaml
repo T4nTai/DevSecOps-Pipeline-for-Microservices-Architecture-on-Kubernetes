@@ -1,8 +1,6 @@
 image:
-  repository: library/emailservice
-  tag: "latest"
-  pullSecret: harbor-credentials
-  harborImage: true
+  repository: gcr.io/google-samples/microservices-demo/emailservice
+  tag: "v0.10.1"
 
 port:
   container: 8080
