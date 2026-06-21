@@ -1,21 +1,17 @@
 image:
   repository: library/frontend
-  tag: "latest"
+  tag: "${IMAGE_TAG}"
   pullSecret: harbor-credentials
   harborImage: true
-
 replicas: 2
-
 port:
   container: 8080
-  service: 80           # external port differs from container port
-
+  service: 80 # external port differs from container port
 probe:
   type: http
   path: /_healthz
   initialDelaySeconds: 10
   periodSeconds: 10
-
 resources:
   requests:
     cpu: "100m"
@@ -23,7 +19,6 @@ resources:
   limits:
     cpu: "200m"
     memory: "128Mi"
-
 env:
   - name: PORT
     value: "8080"
@@ -35,16 +30,14 @@ env:
     value: "false"
   - name: ENABLE_PROFILER
     value: "0"
-
 canary:
   enabled: true
   trafficRouting:
     enabled: true
   analysis:
     enabled: true
-
 ingress:
   enabled: true
-  host: ""   # injected via AppSet helm.values at deploy time
+  host: "" # injected via AppSet helm.values at deploy time
   className: nginx
   tls: false
