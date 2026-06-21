@@ -40,6 +40,8 @@ env:
     value: "emailservice:8080"
   - name: CYMBAL_BRANDING
     value: "false"
+  - name: SHOPPING_ASSISTANT_SERVICE_ADDR
+    value: "shoppingassistantservice:80"
   - name: ENABLE_PROFILER
     value: "0"
 podSecurityContext:
