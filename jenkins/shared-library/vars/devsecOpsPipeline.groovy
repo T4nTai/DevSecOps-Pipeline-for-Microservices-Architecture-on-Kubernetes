@@ -129,9 +129,7 @@ def call(Map config) {
                               --context="\${WORKSPACE}/${appDir}" \
                               --dockerfile="\${WORKSPACE}/${appDir}/Dockerfile" \
                               --no-push \
-                              --tar-path /workspace/image.tar \
-                              --cache=true \
-                              --cache-repo=\${CACHE_REPO}
+                              --tar-path /workspace/image.tar
                         """
                     }
                 }
