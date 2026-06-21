@@ -256,7 +256,7 @@ def runTests(String language) {
             sh 'go test ./... -v -coverprofile=coverage.out'
             break
         case 'java':
-            sh './gradlew test --no-daemon'
+            sh 'chmod +x gradlew && ./gradlew test --no-daemon'
             break
         case 'nodejs':
             sh 'npm ci && npm test'
