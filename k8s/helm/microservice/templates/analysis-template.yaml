@@ -3,7 +3,7 @@ apiVersion: argoproj.io/v1alpha1
 kind: AnalysisTemplate
 metadata:
   name: {{ .Release.Name }}-success-rate
-  namespace: {{ .Values.namespace }}
+  namespace: {{ .Release.Namespace }}
 spec:
   metrics:
     - name: success-rate
@@ -17,8 +17,8 @@ spec:
           address: {{ .Values.canary.analysis.prometheusAddress }}
           query: |
             (
-              sum(rate(nginx_ingress_controller_requests{ingress="{{ .Release.Name }}",namespace="{{ .Values.namespace }}",status!~"5.."}[2m]))
+              sum(rate(nginx_ingress_controller_requests{ingress="{{ .Release.Name }}",namespace="{{ .Release.Namespace }}",status!~"5.."}[2m]))
               /
-              sum(rate(nginx_ingress_controller_requests{ingress="{{ .Release.Name }}",namespace="{{ .Values.namespace }}"}[2m]))
+              sum(rate(nginx_ingress_controller_requests{ingress="{{ .Release.Name }}",namespace="{{ .Release.Namespace }}"}[2m]))
             ) or vector(1)
 {{- end }}

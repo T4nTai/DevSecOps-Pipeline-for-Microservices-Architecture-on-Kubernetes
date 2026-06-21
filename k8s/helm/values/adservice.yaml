@@ -1,6 +1,6 @@
 image:
   repository: library/adservice
-  tag: "${IMAGE_TAG}"
+  tag: "latest"
   pullSecret: harbor-credentials
   harborImage: true
 port:

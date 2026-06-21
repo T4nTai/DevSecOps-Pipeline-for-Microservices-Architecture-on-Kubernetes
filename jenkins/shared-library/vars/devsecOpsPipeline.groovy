@@ -292,13 +292,6 @@ def runSonarScan(String appDir, String sonarKey, String language) {
                       ${extraArgs} || true
                 """
             }
-            try {
-                timeout(time: 15, unit: 'MINUTES') {
-                    waitForQualityGate abortPipeline: false
-                }
-            } catch (Exception e) {
-                echo "SonarQube quality gate check skipped: ${e.message}"
-            }
         }
     }
 }

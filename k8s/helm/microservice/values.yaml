@@ -1,5 +1,3 @@
-namespace: default
-
 global:
   harborRegistry: ""   # injected by AppSet at deploy time
 
