@@ -26,6 +26,18 @@ env:
     value: "productcatalogservice:3550"
   - name: AD_SERVICE_ADDR
     value: "adservice:9555"
+  - name: CURRENCY_SERVICE_ADDR
+    value: "currencyservice:7000"
+  - name: CART_SERVICE_ADDR
+    value: "cartservice:7070"
+  - name: RECOMMENDATION_SERVICE_ADDR
+    value: "recommendationservice:8080"
+  - name: SHIPPING_SERVICE_ADDR
+    value: "shippingservice:50051"
+  - name: CHECKOUT_SERVICE_ADDR
+    value: "checkoutservice:5050"
+  - name: EMAIL_SERVICE_ADDR
+    value: "emailservice:8080"
   - name: CYMBAL_BRANDING
     value: "false"
   - name: ENABLE_PROFILER
