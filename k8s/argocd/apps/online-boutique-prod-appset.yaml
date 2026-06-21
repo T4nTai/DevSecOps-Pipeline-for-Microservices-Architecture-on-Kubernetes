@@ -19,22 +19,6 @@ spec:
             ingressHost: ""
           - service: adservice
             ingressHost: ""
-          - service: currencyservice
-            ingressHost: ""
-          - service: cartservice
-            ingressHost: ""
-          - service: recommendationservice
-            ingressHost: ""
-          - service: shippingservice
-            ingressHost: ""
-          - service: checkoutservice
-            ingressHost: ""
-          - service: emailservice
-            ingressHost: ""
-          - service: paymentservice
-            ingressHost: ""
-          - service: redis-cart
-            ingressHost: ""
 
   template:
     metadata:
