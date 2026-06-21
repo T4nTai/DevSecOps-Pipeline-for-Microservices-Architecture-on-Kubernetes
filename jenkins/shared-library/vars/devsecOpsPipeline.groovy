@@ -163,7 +163,7 @@ def call(Map config) {
                             container('trivy') {
                                 sh """
                                     trivy image \
-                                      --exit-code 0 \
+                                      --exit-code 1 \
                                       --severity HIGH,CRITICAL \
                                       --no-progress \
                                       --input /workspace/image.tar
@@ -177,7 +177,7 @@ def call(Map config) {
                             container('trivy') {
                                 sh """
                                     trivy config \
-                                      --exit-code 0 \
+                                      --exit-code 1 \
                                       --severity HIGH,CRITICAL \
                                       k8s/helm/
                                 """
@@ -289,7 +289,8 @@ def runSonarScan(String appDir, String sonarKey, String language) {
                       -Dsonar.token=\${SONAR_TOKEN} \
                       -Dsonar.host.url=\${SONAR_HOST} \
                       -Dsonar.scm.disabled=true \
-                      ${extraArgs} || true
+                      -Dsonar.qualitygate.wait=true \
+                      ${extraArgs}
                 """
             }
         }
@@ -298,6 +299,6 @@ def runSonarScan(String appDir, String sonarKey, String language) {
 
 def runCheckov() {
     container('checkov') {
-        sh 'checkov -d infra/ --output cli --quiet || true'
+        sh 'checkov -d infra/ --output cli --quiet'
     }
 }
