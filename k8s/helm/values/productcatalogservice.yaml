@@ -1,6 +1,6 @@
 image:
   repository: library/productcatalogservice
-  tag: "21"
+  tag: "${IMAGE_TAG}"
   pullSecret: harbor-credentials
   harborImage: true
 port:
