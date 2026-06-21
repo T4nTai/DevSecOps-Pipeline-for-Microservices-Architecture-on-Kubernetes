@@ -1,6 +1,6 @@
 image:
   repository: library/frontend
-  tag: "${IMAGE_TAG}"
+  tag: "11"
   pullSecret: harbor-credentials
   harborImage: true
 replicas: 2
