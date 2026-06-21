@@ -48,13 +48,16 @@ spec:
       image: sonarsource/sonar-scanner-cli:5.0.1
       imagePullPolicy: IfNotPresent
       command: ["sleep", "infinity"]
+      env:
+        - name: SONAR_SCANNER_OPTS
+          value: "-Xmx1g"
       resources:
         requests:
           cpu: "50m"
-          memory: "256Mi"
-        limits:
-          cpu: "300m"
           memory: "512Mi"
+        limits:
+          cpu: "500m"
+          memory: "2Gi"
 
     - name: checkov
       image: bridgecrew/checkov:3.2.0
