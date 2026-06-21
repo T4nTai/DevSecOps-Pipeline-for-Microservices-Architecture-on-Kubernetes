@@ -47,6 +47,10 @@ dependencies {
                 "com.fasterxml.jackson.core:jackson-databind:${jacksonDatabindVersion}",
                 "io.netty:netty-tcnative-boringssl-static:2.0.75.Final"
     }
+
+    testImplementation "junit:junit:4.13.2",
+            "io.grpc:grpc-testing:${grpcVersion}",
+            "io.grpc:grpc-inprocess:${grpcVersion}"
 }
 
 protobuf {
