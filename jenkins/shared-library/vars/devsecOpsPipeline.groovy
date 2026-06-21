@@ -78,6 +78,7 @@ def call(Map config) {
                     checkout scm
                     container('manifest-updater') {
                         script {
+                            sh 'git config --global --add safe.directory "*"'
                             def msg = sh(script: 'git log -1 --format=%B', returnStdout: true).trim()
                             if (msg.contains('[skip ci]')) {
                                 currentBuild.result = 'NOT_BUILT'
