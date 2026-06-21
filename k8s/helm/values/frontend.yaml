@@ -49,7 +49,7 @@ canary:
   trafficRouting:
     enabled: true
   analysis:
-    enabled: true
+    enabled: false
 ingress:
   enabled: true
   host: "" # injected via AppSet helm.values at deploy time
