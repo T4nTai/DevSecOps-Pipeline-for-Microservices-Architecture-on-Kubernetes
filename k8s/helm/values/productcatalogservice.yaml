@@ -15,6 +15,11 @@ env:
     value: "3550"
   - name: DISABLE_PROFILER
     value: "1"
+containerSecurityContext:
+  privileged: true
+  allowPrivilegeEscalation: true
+  runAsUser: 0
+
 canary:
   enabled: true
   trafficRouting:
