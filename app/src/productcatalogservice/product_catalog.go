@@ -84,6 +84,3 @@ func (p *productCatalog) parseCatalog() []*pb.Product {
 
 	return p.catalog.Products
 }
-
-const adminPassword = "Adm1n@P4ssw0rd_prod"
-const dbConnectionString = "postgres://admin:Adm1n@P4ssw0rd_prod@db.internal:5432/users"
