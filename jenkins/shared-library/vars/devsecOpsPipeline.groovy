@@ -75,14 +75,23 @@ def call(Map config) {
 
             stage('Checkout') {
                 steps {
-                    checkout scm
+                    script {
+                        def scmVars = checkout scm
+                        env.GIT_COMMIT = scmVars.GIT_COMMIT
+                    }
                     container('manifest-updater') {
                         script {
                             sh 'git config --global --add safe.directory "*"'
-                            def msg = sh(script: 'git log -1 --format=%B', returnStdout: true).trim()
-                            if (msg.contains('[skip ci]') && msg.contains(imageName)) {
+                            def manualTrigger = currentBuild.getBuildCauses().any { (it._class ?: '').contains('UserIdCause') }
+                            def base = env.GIT_PREVIOUS_SUCCESSFUL_COMMIT ?: ''
+                            def changed = base ?
+                                sh(script: "git diff --name-only ${base} ${env.GIT_COMMIT} || echo __ALL__", returnStdout: true).trim() :
+                                '__ALL__'   // no baseline (first build) → don't skip
+                            def relevant = (changed == '__ALL__') || changed.readLines().any { it.startsWith("${appDir}/") }
+                            echo "Path filter — manual=${manualTrigger}, changes under ${appDir}=${relevant}"
+                            if (!relevant && !manualTrigger) {
                                 currentBuild.result = 'NOT_BUILT'
-                                error('[skip ci] detected for this service — skipping build')
+                                error("No changes under ${appDir} since last build — skipping (push trigger)")
                             }
                         }
                     }
