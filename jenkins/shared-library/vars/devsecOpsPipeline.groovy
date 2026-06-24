@@ -151,36 +151,48 @@ def call(Map config) {
                 parallel {
 
                     stage('Checkov — IaC') {
-                        steps { runCheckov() }
+                        steps {
+                            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                                runCheckov()
+                            }
+                        }
                     }
 
                     stage('SonarQube — SAST') {
-                        steps { runSonarScan(appDir, sonarKey, language) }
+                        steps {
+                            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                                runSonarScan(appDir, sonarKey, language)
+                            }
+                        }
                     }
 
                     stage('Trivy — Image Scan') {
                         steps {
-                            container('trivy') {
-                                sh """
-                                    trivy image \
-                                      --exit-code 1 \
-                                      --severity HIGH,CRITICAL \
-                                      --no-progress \
-                                      --input /workspace/image.tar
-                                """
+                            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                                container('trivy') {
+                                    sh """
+                                        trivy image \
+                                          --exit-code 1 \
+                                          --severity HIGH,CRITICAL \
+                                          --no-progress \
+                                          --input /workspace/image.tar
+                                    """
+                                }
                             }
                         }
                     }
 
                     stage('Trivy — K8s Manifests') {
                         steps {
-                            container('trivy') {
-                                sh """
-                                    trivy config \
-                                      --exit-code 1 \
-                                      --severity HIGH,CRITICAL \
-                                      k8s/helm/
-                                """
+                            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                                container('trivy') {
+                                    sh """
+                                        trivy config \
+                                          --exit-code 1 \
+                                          --severity HIGH,CRITICAL \
+                                          k8s/helm/
+                                    """
+                                }
                             }
                         }
                     }
