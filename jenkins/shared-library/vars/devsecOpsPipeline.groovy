@@ -211,14 +211,14 @@ def call(Map config) {
                     }
                     container('yq') {
                         sh """
-                            yq e '.image.tag = strenv(IMAGE_TAG)' -i ${manifestFile}
+                            yq e '.image.tag = "${env.IMAGE_TAG}"' -i ${manifestFile}
                         """
                     }
                     container('manifest-updater') {
                         sh """
                             git add ${manifestFile}
                             git diff --cached --quiet && echo "No changes to commit" && exit 0
-                            git commit -m "ci: update ${imageName} image to \${IMAGE_TAG} [skip ci]"
+                            git commit -m "ci: update ${imageName} image to ${env.IMAGE_TAG} [skip ci]"
                             git push https://\${GIT_USER}:\${GIT_TOKEN}@\$(git remote get-url origin | sed 's|https://||') HEAD:\${MANIFEST_BRANCH}
                         """
                     }
