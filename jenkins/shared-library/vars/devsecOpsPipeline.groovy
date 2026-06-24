@@ -80,9 +80,9 @@ def call(Map config) {
                         script {
                             sh 'git config --global --add safe.directory "*"'
                             def msg = sh(script: 'git log -1 --format=%B', returnStdout: true).trim()
-                            if (msg.contains('[skip ci]')) {
+                            if (msg.contains('[skip ci]') && msg.contains(imageName)) {
                                 currentBuild.result = 'NOT_BUILT'
-                                error('[skip ci] detected — skipping build')
+                                error('[skip ci] detected for this service — skipping build')
                             }
                         }
                     }
