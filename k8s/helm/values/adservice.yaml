@@ -1,6 +1,6 @@
 image:
   repository: library/adservice
-  tag: "20"
+  tag: "dev-35"
   pullSecret: harbor-credentials
   harborImage: true
 port:
