@@ -229,7 +229,7 @@ def call(Map config) {
 
         post {
             always {
-                cleanWs()
+                deleteDir()
             }
             success {
                 script {
