@@ -237,9 +237,6 @@ def call(Map config) {
         }
 
         post {
-            always {
-                deleteDir()
-            }
             success {
                 script {
                     if (env.CHANGE_ID) {
